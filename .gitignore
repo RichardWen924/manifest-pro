@@ -34,3 +34,7 @@ build/
 
 ### Local sensitive config ###
 **/src/main/resources/dev.yml
+
+### Frontend ###
+frontend/**/node_modules/
+frontend/**/dist/
