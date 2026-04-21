@@ -190,6 +190,20 @@
           <button class="secondary-button" type="button" @click="searchBills">查询</button>
         </div>
 
+        <div class="batch-toolbar">
+          <label class="check-control">
+            <input type="checkbox" :checked="allCurrentBillsSelected" :disabled="!savedBills.length" @change="toggleSelectCurrentPage" />
+            <span>全选当前页</span>
+          </label>
+          <span>已选择 {{ selectedBillIds.length }} 条</span>
+          <button class="danger-button" type="button" :disabled="!selectedBillIds.length" @click="removeSelectedBills">
+            批量删除
+          </button>
+          <button class="ghost-button" type="button" :disabled="!selectedBillIds.length" @click="clearBillSelection">
+            清空选择
+          </button>
+        </div>
+
         <form v-if="billEditor.open" class="bill-editor" novalidate @submit.prevent="submitBill">
           <div class="editor-title">
             <div>
@@ -263,29 +277,35 @@
             v-for="bill in savedBills"
             :key="bill.id"
             class="bill-row"
-            :class="{ expanded: selectedBillId === bill.id }"
+            :class="{ expanded: selectedBillId === bill.id, checked: selectedBillIds.includes(bill.id) }"
             role="listitem"
           >
-            <button class="bill-summary" type="button" @click="toggleBill(bill.id)">
-              <span class="expand-indicator">{{ selectedBillId === bill.id ? "−" : "+" }}</span>
-              <span>
-                <small>提单号</small>
-                <strong>{{ bill.blNo }}</strong>
-              </span>
-              <span>
-                <small>船名航次</small>
-                <strong>{{ bill.vessel }}</strong>
-              </span>
-              <span>
-                <small>货运商品名称</small>
-                <strong>{{ bill.goodsName }}</strong>
-              </span>
-              <span>
-                <small>数量</small>
-                <strong>{{ bill.quantity }}</strong>
-              </span>
-              <span class="pill">{{ bill.status }}</span>
-            </button>
+            <div class="bill-row-main">
+              <label class="check-control row-check" @click.stop>
+                <input type="checkbox" :checked="selectedBillIds.includes(bill.id)" @change="toggleBillSelection(bill.id)" />
+                <span class="sr-only">选择 {{ bill.blNo }}</span>
+              </label>
+              <button class="bill-summary" type="button" @click="toggleBill(bill.id)">
+                <span class="expand-indicator">{{ selectedBillId === bill.id ? "−" : "+" }}</span>
+                <span>
+                  <small>提单号</small>
+                  <strong>{{ bill.blNo }}</strong>
+                </span>
+                <span>
+                  <small>船名航次</small>
+                  <strong>{{ bill.vessel }}</strong>
+                </span>
+                <span>
+                  <small>货运商品名称</small>
+                  <strong>{{ bill.goodsName }}</strong>
+                </span>
+                <span>
+                  <small>数量</small>
+                  <strong>{{ bill.quantity }}</strong>
+                </span>
+                <span class="pill">{{ bill.status }}</span>
+              </button>
+            </div>
 
             <div v-if="selectedBillId === bill.id" class="bill-detail-panel">
               <div class="row-actions">
@@ -421,6 +441,7 @@ const session = reactive({
 const sidebarCollapsed = ref(false);
 const currentView = ref("overview");
 const selectedBillId = ref("BL-001");
+const selectedBillIds = ref([]);
 const extractFile = ref(null);
 const exportFile = ref(null);
 const toasts = ref([]);
@@ -560,6 +581,9 @@ const exportJobs = ref([]);
 const currentMeta = computed(() => metaMap[currentView.value]);
 const avatarText = computed(() => (session.nickname || session.username || "U").slice(0, 2).toUpperCase());
 const billTotalPages = computed(() => Math.max(1, Math.ceil(billPage.total / billPage.size)));
+const allCurrentBillsSelected = computed(
+  () => savedBills.value.length > 0 && savedBills.value.every((bill) => selectedBillIds.value.includes(bill.id))
+);
 
 async function login() {
   loginError.value = validateLoginForm();
@@ -684,10 +708,12 @@ async function loadBills() {
     billPage.size = Number(page?.size || billPage.size);
     billPage.total = Number(page?.total || 0);
     selectedBillId.value = savedBills.value[0]?.id || "";
+    syncBillSelectionWithCurrentPage();
     notify("提单数据已同步", "已读取 user-service 提单分页接口。", "backend");
   } catch (error) {
     savedBills.value = [...prototypeBills];
     billPage.total = savedBills.value.length;
+    syncBillSelectionWithCurrentPage();
     notify("提单接口待检查", error.message || "已保留原型示例数据。", "error");
   }
 }
@@ -774,6 +800,7 @@ async function submitBill() {
 async function removeBill(bill) {
   try {
     await deleteBill(bill.id);
+    selectedBillIds.value = selectedBillIds.value.filter((id) => id !== bill.id);
     notify("提单已删除", `${bill.blNo} 已从列表移除。`, "backend");
     if (savedBills.value.length === 1 && billPage.current > 1) {
       billPage.current -= 1;
@@ -781,6 +808,25 @@ async function removeBill(bill) {
     await loadBills();
   } catch (error) {
     notify("删除失败", error.message || "请检查 user-service。", "error");
+  }
+}
+
+async function removeSelectedBills() {
+  if (!selectedBillIds.value.length) {
+    return;
+  }
+  const ids = [...selectedBillIds.value];
+  try {
+    await Promise.all(ids.map((id) => deleteBill(id)));
+    notify("批量删除完成", `已删除 ${ids.length} 条提单。`, "backend");
+    selectedBillIds.value = [];
+    if (savedBills.value.length === ids.length && billPage.current > 1) {
+      billPage.current -= 1;
+    }
+    await loadBills();
+  } catch (error) {
+    notify("批量删除失败", error.message || "请检查 user-service。", "error");
+    await loadBills();
   }
 }
 
@@ -796,6 +842,25 @@ async function loadTemplates() {
 
 function toggleBill(id) {
   selectedBillId.value = selectedBillId.value === id ? "" : id;
+}
+
+function toggleBillSelection(id) {
+  selectedBillIds.value = selectedBillIds.value.includes(id)
+    ? selectedBillIds.value.filter((selectedId) => selectedId !== id)
+    : [...selectedBillIds.value, id];
+}
+
+function toggleSelectCurrentPage(event) {
+  selectedBillIds.value = event.target.checked ? savedBills.value.map((bill) => bill.id) : [];
+}
+
+function clearBillSelection() {
+  selectedBillIds.value = [];
+}
+
+function syncBillSelectionWithCurrentPage() {
+  const currentIds = new Set(savedBills.value.map((bill) => bill.id));
+  selectedBillIds.value = selectedBillIds.value.filter((id) => currentIds.has(id));
 }
 
 function handleExtractFile(event) {
