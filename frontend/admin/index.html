@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Manifest Reader Admin Vue Prototype</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="app" v-cloak>
+      <section v-if="!session.loggedIn" class="login-scene">
+        <header class="glass-nav">
+          <div class="brand">
+            <span class="brand-mark">MR</span>
+            <span>Manifest Reader Admin</span>
+          </div>
+          <span class="nav-note">Vue Prototype</span>
+        </header>
+
+        <main class="login-main">
+          <div class="hero-copy">
+            <p class="eyebrow">Admin Console</p>
+            <h1>进入面向提单业务的管理中心。</h1>
+            <p>
+              先完成管理端原型：登录、工作台看板、用户管理、用户数据管理，以及仅超级管理员可访问的权限管理。
+            </p>
+          </div>
+
+          <form class="login-card" @submit.prevent="login">
+            <div>
+              <h2>登录管理端</h2>
+              <p>选择角色以预览不同权限表现。</p>
+            </div>
+            <label>
+              账号
+              <input v-model.trim="loginForm.username" placeholder="admin" required />
+            </label>
+            <label>
+              密码
+              <input v-model.trim="loginForm.password" type="password" placeholder="任意密码" required />
+            </label>
+            <label>
+              登录身份
+              <select v-model="loginForm.role">
+                <option value="SUPER_ADMIN">超级管理员</option>
+                <option value="ADMIN">管理员</option>
+              </select>
+            </label>
+            <button class="primary-button" type="submit">进入管理端</button>
+          </form>
+        </main>
+      </section>
+
+      <section v-else class="admin-shell" :class="{ collapsed: sidebarCollapsed }">
+        <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
+          <div class="sidebar-head">
+            <div class="brand">
+              <span class="brand-mark">MR</span>
+              <span v-if="!sidebarCollapsed">Admin</span>
+            </div>
+            <button class="icon-button" type="button" @click="sidebarCollapsed = !sidebarCollapsed">
+              {{ sidebarCollapsed ? '›' : '‹' }}
+            </button>
+          </div>
+
+          <nav class="side-nav" aria-label="Admin sidebar">
+            <button
+              v-for="item in sidebarItems"
+              :key="item.key"
+              class="side-nav-item"
+              :class="{ active: currentView === item.key, locked: item.locked }"
+              type="button"
+              :disabled="item.locked"
+              @click="switchView(item.key)"
+            >
+              <span class="nav-icon">{{ item.icon }}</span>
+              <span v-if="!sidebarCollapsed">{{ item.label }}</span>
+              <small v-if="item.locked && !sidebarCollapsed">超级管理员</small>
+            </button>
+          </nav>
+
+          <div class="sidebar-foot" v-if="!sidebarCollapsed">
+            <p>当前身份</p>
+            <strong>{{ roleText }}</strong>
+          </div>
+        </aside>
+
+        <main class="workspace">
+          <header class="workspace-topbar">
+            <div>
+              <p class="eyebrow">{{ currentMeta.eyebrow }}</p>
+              <h1>{{ currentMeta.title }}</h1>
+            </div>
+            <div class="topbar-actions">
+              <button class="secondary-button" type="button" @click="sidebarCollapsed = !sidebarCollapsed">
+                {{ sidebarCollapsed ? '展开边栏' : '收起边栏' }}
+              </button>
+              <button class="ghost-light-button" type="button" @click="logout">退出</button>
+            </div>
+          </header>
+
+          <section v-if="currentView === 'dashboard'" class="content-grid">
+            <article class="metric-card dark">
+              <p>今日上传提单</p>
+              <strong>28</strong>
+              <span>较昨日 +12%</span>
+            </article>
+            <article class="metric-card">
+              <p>待确认解析</p>
+              <strong>7</strong>
+              <span>需要业务人员复核</span>
+            </article>
+            <article class="metric-card">
+              <p>活跃用户</p>
+              <strong>{{ users.length }}</strong>
+              <span>管理端原型数据</span>
+            </article>
+            <article class="panel-card wide">
+              <div class="panel-title">
+                <h2>工作台看板预留</h2>
+                <p>后续可接入上传趋势、解析成功率、异常任务、企业使用排行等数据。</p>
+              </div>
+              <div class="timeline">
+                <div v-for="task in dashboardTasks" :key="task.title" class="timeline-item">
+                  <span></span>
+                  <div>
+                    <strong>{{ task.title }}</strong>
+                    <p>{{ task.desc }}</p>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </section>
+
+          <section v-if="currentView === 'users'" class="panel-card">
+            <div class="panel-title row">
+              <div>
+                <h2>用户管理</h2>
+                <p>管理用户账号、角色和启停状态。</p>
+              </div>
+              <button class="primary-button" type="button" @click="openUserDialog()">新增用户</button>
+            </div>
+
+            <div class="toolbar">
+              <label>
+                搜索
+                <input v-model.trim="filters.keyword" placeholder="用户名 / 昵称 / 邮箱" />
+              </label>
+              <label>
+                状态
+                <select v-model="filters.status">
+                  <option value="">全部</option>
+                  <option value="enabled">启用</option>
+                  <option value="disabled">禁用</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>用户</th>
+                    <th>邮箱</th>
+                    <th>手机号</th>
+                    <th>角色</th>
+                    <th>状态</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="user in filteredUsers" :key="user.id">
+                    <td>
+                      <button class="user-link" type="button" @click="openUserData(user)">
+                        <span class="avatar">{{ user.nickname.slice(0, 2) }}</span>
+                        <span>
+                          <strong>{{ user.nickname }}</strong>
+                          <small>{{ user.username }}</small>
+                        </span>
+                      </button>
+                    </td>
+                    <td>{{ user.email }}</td>
+                    <td>{{ user.mobile }}</td>
+                    <td>{{ user.role }}</td>
+                    <td>
+                      <span class="status-pill" :class="{ disabled: user.status === 'disabled' }">
+                        {{ user.status === 'enabled' ? '启用' : '禁用' }}
+                      </span>
+                    </td>
+                    <td>
+                      <div class="row-actions">
+                        <button class="link-button" type="button" @click="openUserDialog(user)">编辑</button>
+                        <button class="link-button" type="button" @click="toggleUserStatus(user)">
+                          {{ user.status === 'enabled' ? '禁用' : '启用' }}
+                        </button>
+                        <button class="link-button" type="button" @click="deleteUser(user)">删除</button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section v-if="currentView === 'userData'" class="panel-card">
+            <div class="panel-title row">
+              <div>
+                <h2>用户数据管理</h2>
+                <p>用户后续上传的提单数据会在这里查看和管理。点击用户可进入对应数据视图。</p>
+              </div>
+              <select v-model="selectedUserId">
+                <option v-for="user in users" :key="user.id" :value="user.id">{{ user.nickname }}</option>
+              </select>
+            </div>
+
+            <div class="data-summary">
+              <article>
+                <span>当前用户</span>
+                <strong>{{ selectedUser?.nickname }}</strong>
+              </article>
+              <article>
+                <span>提单数量</span>
+                <strong>{{ selectedBills.length }}</strong>
+              </article>
+              <article>
+                <span>待确认</span>
+                <strong>{{ selectedBills.filter((item) => item.status === '待确认').length }}</strong>
+              </article>
+            </div>
+
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>提单号</th>
+                    <th>船名航次</th>
+                    <th>装货港</th>
+                    <th>卸货港</th>
+                    <th>状态</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="bill in selectedBills" :key="bill.blNo">
+                    <td>{{ bill.blNo }}</td>
+                    <td>{{ bill.vesselVoyage }}</td>
+                    <td>{{ bill.pol }}</td>
+                    <td>{{ bill.pod }}</td>
+                    <td><span class="status-pill">{{ bill.status }}</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section v-if="currentView === 'permissions'" class="panel-card">
+            <div class="panel-title">
+              <h2>权限管理</h2>
+              <p>仅超级管理员可访问。当前先预留角色、菜单、接口权限配置入口。</p>
+            </div>
+            <div class="permission-grid">
+              <article v-for="permission in permissions" :key="permission.title">
+                <h3>{{ permission.title }}</h3>
+                <p>{{ permission.desc }}</p>
+                <button class="pill-link" type="button">配置</button>
+              </article>
+            </div>
+          </section>
+        </main>
+
+        <dialog class="user-dialog" ref="userDialog">
+          <form @submit.prevent="saveUser">
+            <div class="dialog-header">
+              <div>
+                <p class="eyebrow">User</p>
+                <h2>{{ editingUserId ? '编辑用户' : '新增用户' }}</h2>
+              </div>
+              <button class="icon-button" type="button" @click="closeUserDialog">×</button>
+            </div>
+            <div class="form-grid">
+              <label>
+                用户名
+                <input v-model.trim="userForm.username" required />
+              </label>
+              <label>
+                昵称
+                <input v-model.trim="userForm.nickname" required />
+              </label>
+              <label>
+                邮箱
+                <input v-model.trim="userForm.email" type="email" required />
+              </label>
+              <label>
+                手机号
+                <input v-model.trim="userForm.mobile" required />
+              </label>
+              <label>
+                角色
+                <select v-model="userForm.role">
+                  <option>平台管理员</option>
+                  <option>企业管理员</option>
+                  <option>业务操作员</option>
+                </select>
+              </label>
+              <label>
+                状态
+                <select v-model="userForm.status">
+                  <option value="enabled">启用</option>
+                  <option value="disabled">禁用</option>
+                </select>
+              </label>
+            </div>
+            <div class="dialog-actions">
+              <button class="secondary-button" type="button" @click="closeUserDialog">取消</button>
+              <button class="primary-button" type="submit">保存</button>
+            </div>
+          </form>
+        </dialog>
+      </section>
+    </div>
+
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="./src/main.js"></script>
+  </body>
+</html>
