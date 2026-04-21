@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 
 @Schema(description = "登录请求")
 public record LoginRequest(
+        String identity,
         @NotBlank String username,
         @NotBlank String password,
         String tenantCode

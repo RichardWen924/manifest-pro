@@ -10,6 +10,8 @@ import com.manifestreader.user.model.dto.BillUpdateRequest;
 import com.manifestreader.user.model.vo.BillDetailVO;
 import com.manifestreader.user.model.vo.BillVO;
 import com.manifestreader.user.service.BillService;
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Collections;
 import org.springframework.stereotype.Service;
 
@@ -18,7 +20,15 @@ public class BillServiceImpl implements BillService {
 
     @Override
     public PageResult<BillVO> page(BillPageQuery query) {
-        return PageResult.empty(query.pageNo(), query.pageSize());
+        PageResult<BillVO> pageResult = PageResult.empty(query.pageNo(), query.pageSize());
+        List<BillVO> records = List.of(
+                new BillVO(1L, "MSKU-938201", "BK-938201", "COSCO TAURUS / 046E", "CONFIRMED", "SUCCESS", LocalDateTime.now().minusDays(2)),
+                new BillVO(2L, "ONEY-771904", "BK-771904", "EVER GLOBE / 122W", "REVIEW", "PENDING", LocalDateTime.now().minusDays(1)),
+                new BillVO(3L, "HLCU-204488", "BK-204488", "MAERSK ELBA / 18N", "DRAFT", "NONE", LocalDateTime.now())
+        );
+        pageResult.setRecords(records);
+        pageResult.setTotal(records.size());
+        return pageResult;
     }
 
     @Override

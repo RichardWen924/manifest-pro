@@ -1,0 +1,16 @@
+{
+  "name": "manifest-reader-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n admin,client -c cyan,green \"npm:dev:admin\" \"npm:dev:client\"",
+    "dev:admin": "npm --prefix admin run dev",
+    "dev:client": "npm --prefix client run dev",
+    "build": "npm --prefix admin run build && npm --prefix client run build",
+    "build:admin": "npm --prefix admin run build",
+    "build:client": "npm --prefix client run build"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

@@ -13,7 +13,11 @@ public class UserTemplateServiceImpl implements UserTemplateService {
 
     @Override
     public PageResult<TemplateOptionVO> page(TemplatePageQuery query) {
-        return PageResult.empty(query.pageNo(), query.pageSize());
+        PageResult<TemplateOptionVO> pageResult = PageResult.empty(query.pageNo(), query.pageSize());
+        List<TemplateOptionVO> records = usableTemplates();
+        pageResult.setRecords(records);
+        pageResult.setTotal(records.size());
+        return pageResult;
     }
 
     @Override
@@ -23,6 +27,10 @@ public class UserTemplateServiceImpl implements UserTemplateService {
 
     @Override
     public List<TemplateOptionVO> usableTemplates() {
-        return Collections.emptyList();
+        return List.of(
+                new TemplateOptionVO(1L, "BILL_STD", "标准海运提单模板", 1),
+                new TemplateOptionVO(2L, "BILL_NA", "北美线提单模板", 1),
+                new TemplateOptionVO(3L, "BOOKING_EU", "欧线订舱导出模板", 1)
+        );
     }
 }

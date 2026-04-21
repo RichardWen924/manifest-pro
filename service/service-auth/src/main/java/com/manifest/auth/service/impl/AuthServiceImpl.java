@@ -13,7 +13,11 @@ import com.manifest.auth.vo.LoginResponse;
 import com.manifest.auth.vo.TokenIntrospectionResponse;
 import com.manifestreader.common.exception.BusinessException;
 import com.manifestreader.common.exception.ErrorCode;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
+import org.springframework.dao.EmptyResultDataAccessException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -23,28 +27,46 @@ public class AuthServiceImpl implements AuthService {
     private final TokenService tokenService;
     private final KeyProvider keyProvider;
     private final PasswordEncoder passwordEncoder;
+    private final JdbcTemplate jdbcTemplate;
 
-    public AuthServiceImpl(TokenService tokenService, KeyProvider keyProvider, PasswordEncoder passwordEncoder) {
+    public AuthServiceImpl(TokenService tokenService, KeyProvider keyProvider, PasswordEncoder passwordEncoder, JdbcTemplate jdbcTemplate) {
         this.tokenService = tokenService;
         this.keyProvider = keyProvider;
         this.passwordEncoder = passwordEncoder;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     @Override
     public LoginResponse login(LoginRequest request) {
-        // TODO 查询用户、使用 passwordEncoder.matches 校验 BCrypt 密码、记录登录日志。
-        passwordEncoder.encode(request.password());
+        LoginUser loginUser = findLoginUser(request.identity(), request.username(), request.tenantCode(), request.password());
+        if (loginUser == null) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED.getCode(), "账号或密码错误");
+        }
+        if (loginUser.status() == null || loginUser.status() != 1) {
+            throw new BusinessException(ErrorCode.FORBIDDEN.getCode(), "账号已被禁用");
+        }
+
+        List<String> roleCodes = findRoleCodes(loginUser.userId());
         IssuedToken token = tokenService.issue(new TokenPrincipal(
-                0L,
-                0L,
-                request.username(),
-                Collections.emptyList(),
+                loginUser.userId(),
+                loginUser.companyId(),
+                loginUser.username(),
+                roleCodes,
                 Collections.emptyList(),
                 null,
                 null,
                 null
         ));
-        return new LoginResponse(token.accessToken(), token.refreshToken(), token.tokenType(), token.expiresAt());
+        return new LoginResponse(
+                token.accessToken(),
+                token.refreshToken(),
+                token.tokenType(),
+                token.expiresAt(),
+                loginUser.userId(),
+                loginUser.companyId(),
+                loginUser.username(),
+                roleCodes
+        );
     }
 
     @Override
@@ -55,7 +77,7 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public LoginResponse refresh(RefreshTokenRequest request) {
         IssuedToken token = tokenService.refresh(request.refreshToken());
-        return new LoginResponse(token.accessToken(), token.refreshToken(), token.tokenType(), token.expiresAt());
+        return new LoginResponse(token.accessToken(), token.refreshToken(), token.tokenType(), token.expiresAt(), null, null, null, Collections.emptyList());
     }
 
     @Override
@@ -73,5 +95,72 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public String publicKey() {
         return keyProvider.getPublicKeyPem();
+    }
+
+    private LoginUser findLoginUser(String identity, String username, String tenantCode, String password) {
+        String loginIdentity = hasText(identity) ? identity : username;
+        String sql = """
+                SELECT u.id, u.company_id, u.username, u.password_hash, u.status
+                FROM sys_user u
+                JOIN sys_company c ON c.id = u.company_id
+                WHERE (u.username = ? OR c.company_code = ? OR c.company_abbr = ?)
+                  AND u.deleted = 0
+                  AND c.deleted = 0
+                  AND (? IS NULL OR ? = '' OR c.company_code = ? OR c.company_abbr = ?)
+                ORDER BY CASE WHEN u.username = ? THEN 0 ELSE 1 END, u.id
+                """;
+        try {
+            List<LoginUser> candidates = jdbcTemplate.query(
+                    sql,
+                    (rs, rowNum) -> new LoginUser(
+                            rs.getLong("id"),
+                            rs.getLong("company_id"),
+                            rs.getString("username"),
+                            rs.getString("password_hash"),
+                            rs.getInt("status")
+                    ),
+                    loginIdentity,
+                    loginIdentity,
+                    loginIdentity,
+                    tenantCode,
+                    tenantCode,
+                    tenantCode,
+                    tenantCode,
+                    loginIdentity
+            );
+            return candidates.stream()
+                    .filter(candidate -> passwordEncoder.matches(password, candidate.passwordHash()))
+                    .findFirst()
+                    .orElse(null);
+        } catch (EmptyResultDataAccessException exception) {
+            return null;
+        }
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private List<String> findRoleCodes(Long userId) {
+        return jdbcTemplate.query(
+                """
+                        SELECT r.role_code
+                        FROM sys_user_role ur
+                        JOIN sys_role r ON r.id = ur.role_id
+                        WHERE ur.user_id = ? AND r.status = 1
+                        ORDER BY r.id
+                        """,
+                rs -> {
+                    List<String> roleCodes = new ArrayList<>();
+                    while (rs.next()) {
+                        roleCodes.add(rs.getString("role_code"));
+                    }
+                    return roleCodes;
+                },
+                userId
+        );
+    }
+
+    private record LoginUser(Long userId, Long companyId, String username, String passwordHash, Integer status) {
     }
 }
