@@ -1,20 +1,28 @@
 package com.manifestreader.model.entity;
 
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 
+@TableName("bl_cargo_item")
 public class BlCargoItemEntity {
 
+    @TableId(type = IdType.AUTO)
     private Long id;
     private Long blDocumentId;
-    private String cargoDescription;
-    private Integer packageCount;
-    private String packageType;
-    private BigDecimal grossWeight;
-    private BigDecimal volume;
-    private String marksAndNumbers;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    private String containerNo;
+    private String sealNo;
+    private String containerType;
+    private Integer packageQuantity;
+    private String packageUnit;
+    private String goodsDescription;
+    private String marks;
+    private BigDecimal containerWeight;
+    private BigDecimal vgmWeight;
+    private BigDecimal grossWeightKgs;
+    private BigDecimal measurementCbm;
+    private Integer sortNo;
 
     public Long getId() {
         return id;
@@ -32,67 +40,99 @@ public class BlCargoItemEntity {
         this.blDocumentId = blDocumentId;
     }
 
-    public String getCargoDescription() {
-        return cargoDescription;
+    public String getContainerNo() {
+        return containerNo;
     }
 
-    public void setCargoDescription(String cargoDescription) {
-        this.cargoDescription = cargoDescription;
+    public void setContainerNo(String containerNo) {
+        this.containerNo = containerNo;
     }
 
-    public Integer getPackageCount() {
-        return packageCount;
+    public String getSealNo() {
+        return sealNo;
     }
 
-    public void setPackageCount(Integer packageCount) {
-        this.packageCount = packageCount;
+    public void setSealNo(String sealNo) {
+        this.sealNo = sealNo;
     }
 
-    public String getPackageType() {
-        return packageType;
+    public String getContainerType() {
+        return containerType;
     }
 
-    public void setPackageType(String packageType) {
-        this.packageType = packageType;
+    public void setContainerType(String containerType) {
+        this.containerType = containerType;
     }
 
-    public BigDecimal getGrossWeight() {
-        return grossWeight;
+    public Integer getPackageQuantity() {
+        return packageQuantity;
     }
 
-    public void setGrossWeight(BigDecimal grossWeight) {
-        this.grossWeight = grossWeight;
+    public void setPackageQuantity(Integer packageQuantity) {
+        this.packageQuantity = packageQuantity;
     }
 
-    public BigDecimal getVolume() {
-        return volume;
+    public String getPackageUnit() {
+        return packageUnit;
     }
 
-    public void setVolume(BigDecimal volume) {
-        this.volume = volume;
+    public void setPackageUnit(String packageUnit) {
+        this.packageUnit = packageUnit;
     }
 
-    public String getMarksAndNumbers() {
-        return marksAndNumbers;
+    public String getGoodsDescription() {
+        return goodsDescription;
     }
 
-    public void setMarksAndNumbers(String marksAndNumbers) {
-        this.marksAndNumbers = marksAndNumbers;
+    public void setGoodsDescription(String goodsDescription) {
+        this.goodsDescription = goodsDescription;
     }
 
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
+    public String getMarks() {
+        return marks;
     }
 
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
+    public void setMarks(String marks) {
+        this.marks = marks;
     }
 
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
+    public BigDecimal getContainerWeight() {
+        return containerWeight;
     }
 
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
+    public void setContainerWeight(BigDecimal containerWeight) {
+        this.containerWeight = containerWeight;
+    }
+
+    public BigDecimal getVgmWeight() {
+        return vgmWeight;
+    }
+
+    public void setVgmWeight(BigDecimal vgmWeight) {
+        this.vgmWeight = vgmWeight;
+    }
+
+    public BigDecimal getGrossWeightKgs() {
+        return grossWeightKgs;
+    }
+
+    public void setGrossWeightKgs(BigDecimal grossWeightKgs) {
+        this.grossWeightKgs = grossWeightKgs;
+    }
+
+    public BigDecimal getMeasurementCbm() {
+        return measurementCbm;
+    }
+
+    public void setMeasurementCbm(BigDecimal measurementCbm) {
+        this.measurementCbm = measurementCbm;
+    }
+
+    public Integer getSortNo() {
+        return sortNo;
+    }
+
+    public void setSortNo(Integer sortNo) {
+        this.sortNo = sortNo;
     }
 }

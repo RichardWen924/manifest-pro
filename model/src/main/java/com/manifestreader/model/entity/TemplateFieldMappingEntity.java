@@ -1,18 +1,22 @@
 package com.manifestreader.model.entity;
 
-import java.time.LocalDateTime;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 
+@TableName("tpl_field_mapping")
 public class TemplateFieldMappingEntity {
 
+    @TableId(type = IdType.AUTO)
     private Long id;
     private Long templateVersionId;
-    private String fieldCode;
+    private String fieldKey;
     private String fieldName;
-    private String sourcePath;
+    private String sourceText;
+    private String dataType;
+    private Integer requiredFlag;
     private String defaultValue;
-    private String requiredFlag;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    private Integer sortNo;
 
     public Long getId() {
         return id;
@@ -30,12 +34,12 @@ public class TemplateFieldMappingEntity {
         this.templateVersionId = templateVersionId;
     }
 
-    public String getFieldCode() {
-        return fieldCode;
+    public String getFieldKey() {
+        return fieldKey;
     }
 
-    public void setFieldCode(String fieldCode) {
-        this.fieldCode = fieldCode;
+    public void setFieldKey(String fieldKey) {
+        this.fieldKey = fieldKey;
     }
 
     public String getFieldName() {
@@ -46,12 +50,28 @@ public class TemplateFieldMappingEntity {
         this.fieldName = fieldName;
     }
 
-    public String getSourcePath() {
-        return sourcePath;
+    public String getSourceText() {
+        return sourceText;
     }
 
-    public void setSourcePath(String sourcePath) {
-        this.sourcePath = sourcePath;
+    public void setSourceText(String sourceText) {
+        this.sourceText = sourceText;
+    }
+
+    public String getDataType() {
+        return dataType;
+    }
+
+    public void setDataType(String dataType) {
+        this.dataType = dataType;
+    }
+
+    public Integer getRequiredFlag() {
+        return requiredFlag;
+    }
+
+    public void setRequiredFlag(Integer requiredFlag) {
+        this.requiredFlag = requiredFlag;
     }
 
     public String getDefaultValue() {
@@ -62,27 +82,11 @@ public class TemplateFieldMappingEntity {
         this.defaultValue = defaultValue;
     }
 
-    public String getRequiredFlag() {
-        return requiredFlag;
+    public Integer getSortNo() {
+        return sortNo;
     }
 
-    public void setRequiredFlag(String requiredFlag) {
-        this.requiredFlag = requiredFlag;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
+    public void setSortNo(Integer sortNo) {
+        this.sortNo = sortNo;
     }
 }

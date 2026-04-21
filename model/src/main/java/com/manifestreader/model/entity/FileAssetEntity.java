@@ -1,19 +1,30 @@
 package com.manifestreader.model.entity;
 
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.LocalDateTime;
 
+@TableName("file_asset")
 public class FileAssetEntity {
 
+    @TableId(type = IdType.AUTO)
     private Long id;
+    private Long companyId;
+    private String bizType;
     private String fileName;
-    private String fileType;
+    private String originalName;
+    private String contentType;
     private Long fileSize;
     private String storageType;
-    private String filePath;
-    private String fileUrl;
-    private String status;
+    private String bucketName;
+    private String objectKey;
+    private String fileHash;
+    private Integer status;
+    private Long createdBy;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private Integer deleted;
 
     public Long getId() {
         return id;
@@ -31,12 +42,36 @@ public class FileAssetEntity {
         this.fileName = fileName;
     }
 
-    public String getFileType() {
-        return fileType;
+    public Long getCompanyId() {
+        return companyId;
     }
 
-    public void setFileType(String fileType) {
-        this.fileType = fileType;
+    public void setCompanyId(Long companyId) {
+        this.companyId = companyId;
+    }
+
+    public String getBizType() {
+        return bizType;
+    }
+
+    public void setBizType(String bizType) {
+        this.bizType = bizType;
+    }
+
+    public String getOriginalName() {
+        return originalName;
+    }
+
+    public void setOriginalName(String originalName) {
+        this.originalName = originalName;
+    }
+
+    public String getContentType() {
+        return contentType;
+    }
+
+    public void setContentType(String contentType) {
+        this.contentType = contentType;
     }
 
     public Long getFileSize() {
@@ -55,28 +90,44 @@ public class FileAssetEntity {
         this.storageType = storageType;
     }
 
-    public String getFilePath() {
-        return filePath;
+    public String getBucketName() {
+        return bucketName;
     }
 
-    public void setFilePath(String filePath) {
-        this.filePath = filePath;
+    public void setBucketName(String bucketName) {
+        this.bucketName = bucketName;
     }
 
-    public String getFileUrl() {
-        return fileUrl;
+    public String getObjectKey() {
+        return objectKey;
     }
 
-    public void setFileUrl(String fileUrl) {
-        this.fileUrl = fileUrl;
+    public void setObjectKey(String objectKey) {
+        this.objectKey = objectKey;
     }
 
-    public String getStatus() {
+    public String getFileHash() {
+        return fileHash;
+    }
+
+    public void setFileHash(String fileHash) {
+        this.fileHash = fileHash;
+    }
+
+    public Integer getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(Integer status) {
         this.status = status;
+    }
+
+    public Long getCreatedBy() {
+        return createdBy;
+    }
+
+    public void setCreatedBy(Long createdBy) {
+        this.createdBy = createdBy;
     }
 
     public LocalDateTime getCreatedAt() {
@@ -93,5 +144,13 @@ public class FileAssetEntity {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public Integer getDeleted() {
+        return deleted;
+    }
+
+    public void setDeleted(Integer deleted) {
+        this.deleted = deleted;
     }
 }

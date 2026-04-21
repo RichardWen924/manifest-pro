@@ -1,20 +1,27 @@
 package com.manifestreader.model.entity;
 
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.LocalDateTime;
 
+@TableName("sys_user")
 public class UserEntity {
 
+    @TableId(type = IdType.AUTO)
     private Long id;
     private Long companyId;
     private String username;
-    private String password;
+    private String passwordHash;
     private String nickname;
+    private String mobile;
     private String email;
-    private String phone;
-    private String status;
+    private Integer status;
     private LocalDateTime lastLoginAt;
+    private String remark;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private Integer deleted;
 
     public Long getId() {
         return id;
@@ -40,12 +47,12 @@ public class UserEntity {
         this.username = username;
     }
 
-    public String getPassword() {
-        return password;
+    public String getPasswordHash() {
+        return passwordHash;
     }
 
-    public void setPassword(String password) {
-        this.password = password;
+    public void setPasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
     }
 
     public String getNickname() {
@@ -64,19 +71,19 @@ public class UserEntity {
         this.email = email;
     }
 
-    public String getPhone() {
-        return phone;
+    public String getMobile() {
+        return mobile;
     }
 
-    public void setPhone(String phone) {
-        this.phone = phone;
+    public void setMobile(String mobile) {
+        this.mobile = mobile;
     }
 
-    public String getStatus() {
+    public Integer getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(Integer status) {
         this.status = status;
     }
 
@@ -86,6 +93,14 @@ public class UserEntity {
 
     public void setLastLoginAt(LocalDateTime lastLoginAt) {
         this.lastLoginAt = lastLoginAt;
+    }
+
+    public String getRemark() {
+        return remark;
+    }
+
+    public void setRemark(String remark) {
+        this.remark = remark;
     }
 
     public LocalDateTime getCreatedAt() {
@@ -102,5 +117,13 @@ public class UserEntity {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public Integer getDeleted() {
+        return deleted;
+    }
+
+    public void setDeleted(Integer deleted) {
+        this.deleted = deleted;
     }
 }

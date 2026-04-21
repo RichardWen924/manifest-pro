@@ -1,14 +1,19 @@
 package com.manifestreader.model.entity;
 
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.LocalDateTime;
 
+@TableName("sys_role")
 public class RoleEntity {
 
+    @TableId(type = IdType.AUTO)
     private Long id;
     private String roleCode;
     private String roleName;
-    private String roleType;
-    private String status;
+    private String roleScope;
+    private Integer status;
     private String remark;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -37,19 +42,19 @@ public class RoleEntity {
         this.roleName = roleName;
     }
 
-    public String getRoleType() {
-        return roleType;
+    public String getRoleScope() {
+        return roleScope;
     }
 
-    public void setRoleType(String roleType) {
-        this.roleType = roleType;
+    public void setRoleScope(String roleScope) {
+        this.roleScope = roleScope;
     }
 
-    public String getStatus() {
+    public Integer getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(Integer status) {
         this.status = status;
     }
 

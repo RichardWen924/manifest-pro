@@ -1,19 +1,26 @@
 package com.manifestreader.model.entity;
 
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.LocalDateTime;
 
+@TableName("sys_company")
 public class CompanyEntity {
 
+    @TableId(type = IdType.AUTO)
     private Long id;
     private String companyCode;
     private String companyName;
-    private String companyType;
-    private String contactName;
-    private String contactPhone;
-    private String contactEmail;
-    private String status;
+    private String companyAbbr;
+    private Integer status;
+    private Integer vipStatus;
+    private String packageType;
+    private LocalDateTime expireAt;
+    private String remark;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private Integer deleted;
 
     public Long getId() {
         return id;
@@ -39,44 +46,52 @@ public class CompanyEntity {
         this.companyName = companyName;
     }
 
-    public String getCompanyType() {
-        return companyType;
+    public String getCompanyAbbr() {
+        return companyAbbr;
     }
 
-    public void setCompanyType(String companyType) {
-        this.companyType = companyType;
+    public void setCompanyAbbr(String companyAbbr) {
+        this.companyAbbr = companyAbbr;
     }
 
-    public String getContactName() {
-        return contactName;
-    }
-
-    public void setContactName(String contactName) {
-        this.contactName = contactName;
-    }
-
-    public String getContactPhone() {
-        return contactPhone;
-    }
-
-    public void setContactPhone(String contactPhone) {
-        this.contactPhone = contactPhone;
-    }
-
-    public String getContactEmail() {
-        return contactEmail;
-    }
-
-    public void setContactEmail(String contactEmail) {
-        this.contactEmail = contactEmail;
-    }
-
-    public String getStatus() {
+    public Integer getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(Integer status) {
         this.status = status;
+    }
+
+    public Integer getVipStatus() {
+        return vipStatus;
+    }
+
+    public void setVipStatus(Integer vipStatus) {
+        this.vipStatus = vipStatus;
+    }
+
+    public String getPackageType() {
+        return packageType;
+    }
+
+    public void setPackageType(String packageType) {
+        this.packageType = packageType;
+    }
+
+    public LocalDateTime getExpireAt() {
+        return expireAt;
+    }
+
+    public void setExpireAt(LocalDateTime expireAt) {
+        this.expireAt = expireAt;
+    }
+
+    public String getRemark() {
+        return remark;
+    }
+
+    public void setRemark(String remark) {
+        this.remark = remark;
     }
 
     public LocalDateTime getCreatedAt() {
@@ -93,5 +108,13 @@ public class CompanyEntity {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public Integer getDeleted() {
+        return deleted;
+    }
+
+    public void setDeleted(Integer deleted) {
+        this.deleted = deleted;
     }
 }

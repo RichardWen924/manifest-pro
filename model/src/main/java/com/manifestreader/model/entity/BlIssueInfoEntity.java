@@ -1,18 +1,21 @@
 package com.manifestreader.model.entity;
 
-import java.time.LocalDate;
-import java.time.LocalDateTime;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 
+@TableName("bl_issue_info")
 public class BlIssueInfoEntity {
 
+    @TableId(type = IdType.AUTO)
     private Long id;
     private Long blDocumentId;
+    private String serviceType;
+    private String serviceMode;
+    private String revenueTons;
     private String issuePlace;
-    private LocalDate issueDate;
-    private String signedBy;
-    private String issueRemark;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    private String ladenOnBoard;
+    private String originalBlCount;
 
     public Long getId() {
         return id;
@@ -30,6 +33,30 @@ public class BlIssueInfoEntity {
         this.blDocumentId = blDocumentId;
     }
 
+    public String getServiceType() {
+        return serviceType;
+    }
+
+    public void setServiceType(String serviceType) {
+        this.serviceType = serviceType;
+    }
+
+    public String getServiceMode() {
+        return serviceMode;
+    }
+
+    public void setServiceMode(String serviceMode) {
+        this.serviceMode = serviceMode;
+    }
+
+    public String getRevenueTons() {
+        return revenueTons;
+    }
+
+    public void setRevenueTons(String revenueTons) {
+        this.revenueTons = revenueTons;
+    }
+
     public String getIssuePlace() {
         return issuePlace;
     }
@@ -38,43 +65,19 @@ public class BlIssueInfoEntity {
         this.issuePlace = issuePlace;
     }
 
-    public LocalDate getIssueDate() {
-        return issueDate;
+    public String getLadenOnBoard() {
+        return ladenOnBoard;
     }
 
-    public void setIssueDate(LocalDate issueDate) {
-        this.issueDate = issueDate;
+    public void setLadenOnBoard(String ladenOnBoard) {
+        this.ladenOnBoard = ladenOnBoard;
     }
 
-    public String getSignedBy() {
-        return signedBy;
+    public String getOriginalBlCount() {
+        return originalBlCount;
     }
 
-    public void setSignedBy(String signedBy) {
-        this.signedBy = signedBy;
-    }
-
-    public String getIssueRemark() {
-        return issueRemark;
-    }
-
-    public void setIssueRemark(String issueRemark) {
-        this.issueRemark = issueRemark;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
+    public void setOriginalBlCount(String originalBlCount) {
+        this.originalBlCount = originalBlCount;
     }
 }

@@ -1,15 +1,21 @@
 package com.manifestreader.model.entity;
 
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.LocalDateTime;
 
+@TableName("sys_dict_item")
 public class DictItemEntity {
 
+    @TableId(type = IdType.AUTO)
     private Long id;
     private Long dictTypeId;
     private String itemLabel;
     private String itemValue;
     private Integer sortNo;
-    private String status;
+    private Integer status;
+    private String remark;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -53,12 +59,20 @@ public class DictItemEntity {
         this.sortNo = sortNo;
     }
 
-    public String getStatus() {
+    public Integer getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(Integer status) {
         this.status = status;
+    }
+
+    public String getRemark() {
+        return remark;
+    }
+
+    public void setRemark(String remark) {
+        this.remark = remark;
     }
 
     public LocalDateTime getCreatedAt() {

@@ -1,19 +1,23 @@
 package com.manifestreader.model.entity;
 
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 
+@TableName("bl_charge")
 public class BlChargeEntity {
 
+    @TableId(type = IdType.AUTO)
     private Long id;
     private Long blDocumentId;
-    private String chargeCode;
+    private String chargeType;
     private String chargeName;
+    private String currencyCode;
     private BigDecimal amount;
-    private String currency;
-    private String payerType;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    private String paymentTerm;
+    private String payableAt;
+    private Integer sortNo;
 
     public Long getId() {
         return id;
@@ -31,12 +35,12 @@ public class BlChargeEntity {
         this.blDocumentId = blDocumentId;
     }
 
-    public String getChargeCode() {
-        return chargeCode;
+    public String getChargeType() {
+        return chargeType;
     }
 
-    public void setChargeCode(String chargeCode) {
-        this.chargeCode = chargeCode;
+    public void setChargeType(String chargeType) {
+        this.chargeType = chargeType;
     }
 
     public String getChargeName() {
@@ -55,35 +59,35 @@ public class BlChargeEntity {
         this.amount = amount;
     }
 
-    public String getCurrency() {
-        return currency;
+    public String getCurrencyCode() {
+        return currencyCode;
     }
 
-    public void setCurrency(String currency) {
-        this.currency = currency;
+    public void setCurrencyCode(String currencyCode) {
+        this.currencyCode = currencyCode;
     }
 
-    public String getPayerType() {
-        return payerType;
+    public String getPaymentTerm() {
+        return paymentTerm;
     }
 
-    public void setPayerType(String payerType) {
-        this.payerType = payerType;
+    public void setPaymentTerm(String paymentTerm) {
+        this.paymentTerm = paymentTerm;
     }
 
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
+    public String getPayableAt() {
+        return payableAt;
     }
 
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
+    public void setPayableAt(String payableAt) {
+        this.payableAt = payableAt;
     }
 
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
+    public Integer getSortNo() {
+        return sortNo;
     }
 
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
+    public void setSortNo(Integer sortNo) {
+        this.sortNo = sortNo;
     }
 }

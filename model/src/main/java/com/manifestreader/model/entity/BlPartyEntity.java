@@ -1,18 +1,22 @@
 package com.manifestreader.model.entity;
 
-import java.time.LocalDateTime;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 
+@TableName("bl_party")
 public class BlPartyEntity {
 
+    @TableId(type = IdType.AUTO)
     private Long id;
     private Long blDocumentId;
     private String partyType;
     private String partyName;
     private String partyAddress;
-    private String partyContact;
-    private String partyPhone;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    private String contactName;
+    private String contactPhone;
+    private String contactEmail;
+    private Integer sortNo;
 
     public Long getId() {
         return id;
@@ -54,35 +58,35 @@ public class BlPartyEntity {
         this.partyAddress = partyAddress;
     }
 
-    public String getPartyContact() {
-        return partyContact;
+    public String getContactName() {
+        return contactName;
     }
 
-    public void setPartyContact(String partyContact) {
-        this.partyContact = partyContact;
+    public void setContactName(String contactName) {
+        this.contactName = contactName;
     }
 
-    public String getPartyPhone() {
-        return partyPhone;
+    public String getContactPhone() {
+        return contactPhone;
     }
 
-    public void setPartyPhone(String partyPhone) {
-        this.partyPhone = partyPhone;
+    public void setContactPhone(String contactPhone) {
+        this.contactPhone = contactPhone;
     }
 
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
+    public String getContactEmail() {
+        return contactEmail;
     }
 
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
+    public void setContactEmail(String contactEmail) {
+        this.contactEmail = contactEmail;
     }
 
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
+    public Integer getSortNo() {
+        return sortNo;
     }
 
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
+    public void setSortNo(Integer sortNo) {
+        this.sortNo = sortNo;
     }
 }

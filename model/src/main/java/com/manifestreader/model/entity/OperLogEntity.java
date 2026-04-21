@@ -1,19 +1,26 @@
 package com.manifestreader.model.entity;
 
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.LocalDateTime;
 
+@TableName("sys_oper_log")
 public class OperLogEntity {
 
+    @TableId(type = IdType.AUTO)
     private Long id;
-    private Long operatorId;
-    private String operatorName;
-    private String moduleName;
-    private String operationType;
-    private String requestMethod;
+    private Long companyId;
+    private Long userId;
+    private String moduleCode;
+    private String bizType;
+    private String bizId;
     private String requestUri;
-    private String traceId;
-    private String operationResult;
+    private String requestMethod;
+    private String requestIp;
+    private Integer operStatus;
     private String errorMessage;
+    private Long costMs;
     private LocalDateTime createdAt;
 
     public Long getId() {
@@ -24,36 +31,44 @@ public class OperLogEntity {
         this.id = id;
     }
 
-    public Long getOperatorId() {
-        return operatorId;
+    public Long getCompanyId() {
+        return companyId;
     }
 
-    public void setOperatorId(Long operatorId) {
-        this.operatorId = operatorId;
+    public void setCompanyId(Long companyId) {
+        this.companyId = companyId;
     }
 
-    public String getOperatorName() {
-        return operatorName;
+    public Long getUserId() {
+        return userId;
     }
 
-    public void setOperatorName(String operatorName) {
-        this.operatorName = operatorName;
+    public void setUserId(Long userId) {
+        this.userId = userId;
     }
 
-    public String getModuleName() {
-        return moduleName;
+    public String getModuleCode() {
+        return moduleCode;
     }
 
-    public void setModuleName(String moduleName) {
-        this.moduleName = moduleName;
+    public void setModuleCode(String moduleCode) {
+        this.moduleCode = moduleCode;
     }
 
-    public String getOperationType() {
-        return operationType;
+    public String getBizType() {
+        return bizType;
     }
 
-    public void setOperationType(String operationType) {
-        this.operationType = operationType;
+    public void setBizType(String bizType) {
+        this.bizType = bizType;
+    }
+
+    public String getBizId() {
+        return bizId;
+    }
+
+    public void setBizId(String bizId) {
+        this.bizId = bizId;
     }
 
     public String getRequestMethod() {
@@ -72,20 +87,20 @@ public class OperLogEntity {
         this.requestUri = requestUri;
     }
 
-    public String getTraceId() {
-        return traceId;
+    public String getRequestIp() {
+        return requestIp;
     }
 
-    public void setTraceId(String traceId) {
-        this.traceId = traceId;
+    public void setRequestIp(String requestIp) {
+        this.requestIp = requestIp;
     }
 
-    public String getOperationResult() {
-        return operationResult;
+    public Integer getOperStatus() {
+        return operStatus;
     }
 
-    public void setOperationResult(String operationResult) {
-        this.operationResult = operationResult;
+    public void setOperStatus(Integer operStatus) {
+        this.operStatus = operStatus;
     }
 
     public String getErrorMessage() {
@@ -94,6 +109,14 @@ public class OperLogEntity {
 
     public void setErrorMessage(String errorMessage) {
         this.errorMessage = errorMessage;
+    }
+
+    public Long getCostMs() {
+        return costMs;
+    }
+
+    public void setCostMs(Long costMs) {
+        this.costMs = costMs;
     }
 
     public LocalDateTime getCreatedAt() {

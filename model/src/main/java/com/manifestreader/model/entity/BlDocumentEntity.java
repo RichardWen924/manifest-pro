@@ -1,21 +1,35 @@
 package com.manifestreader.model.entity;
 
-import java.time.LocalDate;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.LocalDateTime;
 
+@TableName("bl_document")
 public class BlDocumentEntity {
 
+    @TableId(type = IdType.AUTO)
     private Long id;
+    private Long companyId;
     private String blNo;
     private String bookingNo;
-    private String vesselName;
-    private String voyageNo;
+    private String docNo;
+    private String serialNo;
+    private String vesselVoyage;
+    private String preCarriageBy;
+    private String placeOfReceipt;
     private String portOfLoading;
     private String portOfDischarge;
-    private LocalDate issueDate;
+    private String placeOfDelivery;
+    private Long sourceFileId;
     private String status;
+    private String parseStatus;
+    private String remark;
+    private Long createdBy;
     private LocalDateTime createdAt;
+    private Long updatedBy;
     private LocalDateTime updatedAt;
+    private Integer deleted;
 
     public Long getId() {
         return id;
@@ -41,20 +55,52 @@ public class BlDocumentEntity {
         this.bookingNo = bookingNo;
     }
 
-    public String getVesselName() {
-        return vesselName;
+    public Long getCompanyId() {
+        return companyId;
     }
 
-    public void setVesselName(String vesselName) {
-        this.vesselName = vesselName;
+    public void setCompanyId(Long companyId) {
+        this.companyId = companyId;
     }
 
-    public String getVoyageNo() {
-        return voyageNo;
+    public String getDocNo() {
+        return docNo;
     }
 
-    public void setVoyageNo(String voyageNo) {
-        this.voyageNo = voyageNo;
+    public void setDocNo(String docNo) {
+        this.docNo = docNo;
+    }
+
+    public String getSerialNo() {
+        return serialNo;
+    }
+
+    public void setSerialNo(String serialNo) {
+        this.serialNo = serialNo;
+    }
+
+    public String getVesselVoyage() {
+        return vesselVoyage;
+    }
+
+    public void setVesselVoyage(String vesselVoyage) {
+        this.vesselVoyage = vesselVoyage;
+    }
+
+    public String getPreCarriageBy() {
+        return preCarriageBy;
+    }
+
+    public void setPreCarriageBy(String preCarriageBy) {
+        this.preCarriageBy = preCarriageBy;
+    }
+
+    public String getPlaceOfReceipt() {
+        return placeOfReceipt;
+    }
+
+    public void setPlaceOfReceipt(String placeOfReceipt) {
+        this.placeOfReceipt = placeOfReceipt;
     }
 
     public String getPortOfLoading() {
@@ -73,12 +119,20 @@ public class BlDocumentEntity {
         this.portOfDischarge = portOfDischarge;
     }
 
-    public LocalDate getIssueDate() {
-        return issueDate;
+    public String getPlaceOfDelivery() {
+        return placeOfDelivery;
     }
 
-    public void setIssueDate(LocalDate issueDate) {
-        this.issueDate = issueDate;
+    public void setPlaceOfDelivery(String placeOfDelivery) {
+        this.placeOfDelivery = placeOfDelivery;
+    }
+
+    public Long getSourceFileId() {
+        return sourceFileId;
+    }
+
+    public void setSourceFileId(Long sourceFileId) {
+        this.sourceFileId = sourceFileId;
     }
 
     public String getStatus() {
@@ -89,6 +143,30 @@ public class BlDocumentEntity {
         this.status = status;
     }
 
+    public String getParseStatus() {
+        return parseStatus;
+    }
+
+    public void setParseStatus(String parseStatus) {
+        this.parseStatus = parseStatus;
+    }
+
+    public String getRemark() {
+        return remark;
+    }
+
+    public void setRemark(String remark) {
+        this.remark = remark;
+    }
+
+    public Long getCreatedBy() {
+        return createdBy;
+    }
+
+    public void setCreatedBy(Long createdBy) {
+        this.createdBy = createdBy;
+    }
+
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
@@ -97,11 +175,27 @@ public class BlDocumentEntity {
         this.createdAt = createdAt;
     }
 
+    public Long getUpdatedBy() {
+        return updatedBy;
+    }
+
+    public void setUpdatedBy(Long updatedBy) {
+        this.updatedBy = updatedBy;
+    }
+
     public LocalDateTime getUpdatedAt() {
         return updatedAt;
     }
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public Integer getDeleted() {
+        return deleted;
+    }
+
+    public void setDeleted(Integer deleted) {
+        this.deleted = deleted;
     }
 }

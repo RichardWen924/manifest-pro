@@ -1,17 +1,23 @@
 package com.manifestreader.model.entity;
 
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.LocalDateTime;
 
+@TableName("tpl_template_version")
 public class TemplateVersionEntity {
 
+    @TableId(type = IdType.AUTO)
     private Long id;
     private Long templateId;
     private Integer versionNo;
-    private String contentJson;
-    private String publishStatus;
-    private LocalDateTime publishedAt;
+    private Long fileAssetId;
+    private String contentFormat;
+    private String fieldSchemaJson;
+    private Integer status;
+    private Long createdBy;
     private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
 
     public Long getId() {
         return id;
@@ -37,28 +43,44 @@ public class TemplateVersionEntity {
         this.versionNo = versionNo;
     }
 
-    public String getContentJson() {
-        return contentJson;
+    public Long getFileAssetId() {
+        return fileAssetId;
     }
 
-    public void setContentJson(String contentJson) {
-        this.contentJson = contentJson;
+    public void setFileAssetId(Long fileAssetId) {
+        this.fileAssetId = fileAssetId;
     }
 
-    public String getPublishStatus() {
-        return publishStatus;
+    public String getContentFormat() {
+        return contentFormat;
     }
 
-    public void setPublishStatus(String publishStatus) {
-        this.publishStatus = publishStatus;
+    public void setContentFormat(String contentFormat) {
+        this.contentFormat = contentFormat;
     }
 
-    public LocalDateTime getPublishedAt() {
-        return publishedAt;
+    public String getFieldSchemaJson() {
+        return fieldSchemaJson;
     }
 
-    public void setPublishedAt(LocalDateTime publishedAt) {
-        this.publishedAt = publishedAt;
+    public void setFieldSchemaJson(String fieldSchemaJson) {
+        this.fieldSchemaJson = fieldSchemaJson;
+    }
+
+    public Integer getStatus() {
+        return status;
+    }
+
+    public void setStatus(Integer status) {
+        this.status = status;
+    }
+
+    public Long getCreatedBy() {
+        return createdBy;
+    }
+
+    public void setCreatedBy(Long createdBy) {
+        this.createdBy = createdBy;
     }
 
     public LocalDateTime getCreatedAt() {
@@ -67,13 +89,5 @@ public class TemplateVersionEntity {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
     }
 }
