@@ -26,6 +26,7 @@ public class AuthSecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(
                                 "/auth/login",
+                                "/auth/users",
                                 "/auth/token/refresh",
                                 "/auth/token/introspect",
                                 "/auth/public-key",

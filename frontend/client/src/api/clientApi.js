@@ -54,8 +54,52 @@ export async function loginClient(payload) {
   });
 }
 
-export async function fetchBillPage() {
-  return request(USER_BASE, "/bills/page?pageNo=1&pageSize=20");
+export async function registerClient(payload) {
+  return request(AUTH_BASE, "/users", {
+    method: "POST",
+    body: JSON.stringify({
+      companyId: payload.companyId || 2,
+      username: payload.username,
+      password: payload.password,
+      nickname: payload.nickname,
+      mobile: payload.mobile,
+      email: payload.email,
+      status: 1,
+    }),
+  });
+}
+
+export async function fetchBillPage(params = {}) {
+  const search = new URLSearchParams();
+  search.set("pageNo", params.pageNo || 1);
+  search.set("pageSize", params.pageSize || 5);
+  if (params.keyword) {
+    search.set("keyword", params.keyword);
+  }
+  if (params.status) {
+    search.set("status", params.status);
+  }
+  return request(USER_BASE, `/bills/page?${search.toString()}`);
+}
+
+export async function createBill(payload) {
+  return request(USER_BASE, "/bills", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateBill(id, payload) {
+  return request(USER_BASE, `/bills/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteBill(id) {
+  return request(USER_BASE, `/bills/${id}`, {
+    method: "DELETE",
+  });
 }
 
 export async function fetchTemplateOptions() {

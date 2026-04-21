@@ -7,6 +7,10 @@ public record BillVO(
         String blNo,
         String bookingNo,
         String vesselVoyage,
+        String portOfLoading,
+        String portOfDischarge,
+        String goodsName,
+        String quantity,
         String status,
         String parseStatus,
         LocalDateTime createdAt

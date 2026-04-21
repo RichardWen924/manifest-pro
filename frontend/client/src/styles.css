@@ -212,6 +212,18 @@ p {
   animation: panelFadeIn 0.78s 0.36s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
+.auth-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.auth-card-head .ghost-button {
+  flex: 0 0 auto;
+  padding-inline: 14px;
+}
+
 .login-card h2,
 .panel-card h2 {
   margin-bottom: 8px;
@@ -621,6 +633,61 @@ select {
   display: block;
 }
 
+.bill-actions,
+.row-actions,
+.pagination-bar,
+.pagination-bar div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.bill-toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(160px, 0.36fr) auto;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 16px;
+}
+
+.bill-editor {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 18px;
+  border: 1px solid rgba(0, 113, 227, 0.18);
+  border-radius: 12px;
+  padding: 18px;
+  background: linear-gradient(135deg, rgba(0, 113, 227, 0.08), rgba(255, 255, 255, 0.92));
+}
+
+.editor-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.editor-title div {
+  display: grid;
+  gap: 4px;
+}
+
+.editor-title strong {
+  font-size: 18px;
+}
+
+.editor-title span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.editor-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
 .placeholder-strip {
   display: grid;
   grid-template-columns: 1.2fr 0.8fr 1fr;
@@ -698,6 +765,11 @@ select {
   animation: revealDetail 0.22s ease both;
 }
 
+.row-actions {
+  justify-content: flex-end;
+  margin-bottom: 14px;
+}
+
 .detail-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -733,6 +805,41 @@ select {
 .field-hint p {
   margin: 0;
   font-size: 13px;
+}
+
+.empty-state {
+  border: 1px dashed rgba(29, 29, 31, 0.18);
+  border-radius: 12px;
+  padding: 22px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.pagination-bar {
+  justify-content: space-between;
+  margin-top: 16px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.danger-button {
+  border: 1px solid rgba(255, 59, 48, 0.12);
+  border-radius: 980px;
+  padding: 9px 18px;
+  background: rgba(255, 59, 48, 0.1);
+  color: #b42318;
+  transition: transform 0.18s ease, background 0.18s ease;
+}
+
+.danger-button:hover {
+  background: rgba(255, 59, 48, 0.16);
+  transform: translateY(-1px);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.46;
+  transform: none !important;
 }
 
 @keyframes revealDetail {

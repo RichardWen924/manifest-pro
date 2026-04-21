@@ -30,11 +30,14 @@
         </div>
       </section>
 
-      <form class="login-card" novalidate @submit.prevent="login">
-        <div>
-          <p class="card-kicker">鉴权入口</p>
-          <h2>登录客户端</h2>
-          <p>输入用户名或航运公司四字母编号，再使用密码进入用户工作台。</p>
+      <form v-if="authMode === 'login'" class="login-card" novalidate @submit.prevent="login">
+        <div class="auth-card-head">
+          <div>
+            <p class="card-kicker">鉴权入口</p>
+            <h2>登录客户端</h2>
+            <p>输入用户名或航运公司四字母编号，再使用密码进入用户工作台。</p>
+          </div>
+          <button class="ghost-button" type="button" @click="switchAuthMode('register')">注册账号</button>
         </div>
         <label>
           用户名 / 四字编号
@@ -46,6 +49,39 @@
         </label>
         <p v-if="loginError" class="form-error">{{ loginError }}</p>
         <button class="primary-button" type="submit">进入工作台</button>
+      </form>
+
+      <form v-else class="login-card register-card" novalidate @submit.prevent="register">
+        <div class="auth-card-head">
+          <div>
+            <p class="card-kicker">新用户入口</p>
+            <h2>注册客户端</h2>
+            <p>创建测试租户下的普通用户账号，注册成功后可直接返回登录。</p>
+          </div>
+          <button class="ghost-button" type="button" @click="switchAuthMode('login')">返回登录</button>
+        </div>
+        <label>
+          用户名
+          <input v-model.trim="registerForm.username" placeholder="new_user" @input="clearRegisterError" />
+        </label>
+        <label>
+          密码
+          <input v-model.trim="registerForm.password" type="password" placeholder="至少 6 位密码" @input="clearRegisterError" />
+        </label>
+        <label>
+          确认密码
+          <input v-model.trim="registerForm.confirmPassword" type="password" placeholder="再次输入密码" @input="clearRegisterError" />
+        </label>
+        <label>
+          昵称
+          <input v-model.trim="registerForm.nickname" placeholder="可选" @input="clearRegisterError" />
+        </label>
+        <label>
+          邮箱
+          <input v-model.trim="registerForm.email" type="email" placeholder="可选" @input="clearRegisterError" />
+        </label>
+        <p v-if="registerError" class="form-error">{{ registerError }}</p>
+        <button class="primary-button" type="submit">创建账号</button>
       </form>
     </main>
   </section>
@@ -129,10 +165,99 @@
         <div class="panel-title">
           <div>
             <h2>已存提单数据</h2>
-            <p>面向 30+ 字段的提单数据视图。点击任一提单行展开完整字段预览。</p>
+            <p>支持分页、搜索、新增、编辑和删除。点击任一提单行展开完整字段预览。</p>
           </div>
-          <button class="primary-button" type="button" @click="loadBills">刷新</button>
+          <div class="bill-actions">
+            <button class="ghost-button" type="button" @click="resetBillFilters">重置</button>
+            <button class="primary-button" type="button" @click="startCreateBill">新增提单</button>
+          </div>
         </div>
+
+        <div class="bill-toolbar">
+          <label>
+            关键词
+            <input v-model.trim="billQuery.keyword" placeholder="提单号 / 订舱号 / 船名航次" @keyup.enter="searchBills" />
+          </label>
+          <label>
+            状态
+            <select v-model="billQuery.status" @change="searchBills">
+              <option value="">全部状态</option>
+              <option value="DRAFT">草稿</option>
+              <option value="CONFIRMED">已确认</option>
+              <option value="ARCHIVED">已归档</option>
+            </select>
+          </label>
+          <button class="secondary-button" type="button" @click="searchBills">查询</button>
+        </div>
+
+        <form v-if="billEditor.open" class="bill-editor" novalidate @submit.prevent="submitBill">
+          <div class="editor-title">
+            <div>
+              <strong>{{ billEditor.mode === "create" ? "新增提单" : "编辑提单" }}</strong>
+              <span>先维护核心字段，复杂解析字段后续接入模板和文件解析。</span>
+            </div>
+            <button class="ghost-button" type="button" @click="closeBillEditor">取消</button>
+          </div>
+          <div class="editor-grid">
+            <label>
+              提单号
+              <input v-model.trim="billForm.blNo" placeholder="TEST-BL-0002" />
+            </label>
+            <label>
+              订舱号
+              <input v-model.trim="billForm.bookingNo" placeholder="BOOK-0002" />
+            </label>
+            <label>
+              船名航次
+              <input v-model.trim="billForm.vesselVoyage" placeholder="MSC TEST V002" />
+            </label>
+            <label>
+              状态
+              <select v-model="billForm.status">
+                <option value="DRAFT">草稿</option>
+                <option value="CONFIRMED">已确认</option>
+                <option value="ARCHIVED">已归档</option>
+              </select>
+            </label>
+            <label>
+              起运港
+              <input v-model.trim="billForm.portOfLoading" placeholder="SHANGHAI" />
+            </label>
+            <label>
+              目的港
+              <input v-model.trim="billForm.portOfDischarge" placeholder="SINGAPORE" />
+            </label>
+            <label>
+              收货地
+              <input v-model.trim="billForm.placeOfReceipt" placeholder="SHANGHAI" />
+            </label>
+            <label>
+              交付地
+              <input v-model.trim="billForm.placeOfDelivery" placeholder="SINGAPORE" />
+            </label>
+            <label>
+              货运商品名称
+              <input v-model.trim="billForm.goodsName" placeholder="Electronic parts" />
+            </label>
+            <label>
+              数量
+              <input v-model.number="billForm.quantity" type="number" min="0" placeholder="100" />
+            </label>
+            <label>
+              单位
+              <input v-model.trim="billForm.packageUnit" placeholder="CTN" />
+            </label>
+            <label>
+              备注
+              <input v-model.trim="billForm.remark" placeholder="可选备注" />
+            </label>
+          </div>
+          <p v-if="billEditor.error" class="form-error">{{ billEditor.error }}</p>
+          <button class="primary-button full" type="submit">
+            {{ billEditor.mode === "create" ? "创建提单" : "保存修改" }}
+          </button>
+        </form>
+
         <div class="bill-list" role="list">
           <article
             v-for="bill in savedBills"
@@ -163,6 +288,10 @@
             </button>
 
             <div v-if="selectedBillId === bill.id" class="bill-detail-panel">
+              <div class="row-actions">
+                <button class="secondary-button" type="button" @click="startEditBill(bill)">编辑</button>
+                <button class="danger-button" type="button" @click="removeBill(bill)">删除</button>
+              </div>
               <div class="detail-grid">
                 <div v-for="field in bill.detailFields" :key="field.label" class="detail-field">
                   <span>{{ field.label }}</span>
@@ -175,6 +304,14 @@
               </div>
             </div>
           </article>
+        </div>
+        <div v-if="!savedBills.length" class="empty-state">暂无提单数据，可以点击“新增提单”创建第一条。</div>
+        <div class="pagination-bar">
+          <span>共 {{ billPage.total }} 条，第 {{ billPage.current }} / {{ billTotalPages }} 页</span>
+          <div>
+            <button class="ghost-button" type="button" :disabled="billPage.current <= 1" @click="changeBillPage(-1)">上一页</button>
+            <button class="ghost-button" type="button" :disabled="billPage.current >= billTotalPages" @click="changeBillPage(1)">下一页</button>
+          </div>
         </div>
       </section>
 
@@ -246,16 +383,32 @@
 <script setup>
 import { computed, reactive, ref } from "vue";
 import {
+  createBill,
+  deleteBill,
   fetchBillPage,
   fetchTemplateOptions,
   initFileUpload,
   loginClient,
+  registerClient,
   setAccessToken,
+  updateBill,
 } from "./api/clientApi";
+
+const authMode = ref("login");
 
 const loginForm = reactive({
   identity: "tenant_user",
   password: "",
+});
+
+const registerForm = reactive({
+  username: "",
+  password: "",
+  confirmPassword: "",
+  nickname: "",
+  mobile: "",
+  email: "",
+  companyId: 2,
 });
 
 const session = reactive({
@@ -272,10 +425,31 @@ const extractFile = ref(null);
 const exportFile = ref(null);
 const toasts = ref([]);
 const loginError = ref("");
+const registerError = ref("");
 
 const exportForm = reactive({
   templateId: "tpl-001",
 });
+
+const billQuery = reactive({
+  keyword: "",
+  status: "",
+});
+
+const billPage = reactive({
+  current: 1,
+  size: 5,
+  total: 0,
+});
+
+const billEditor = reactive({
+  open: false,
+  mode: "create",
+  editingId: null,
+  error: "",
+});
+
+const billForm = reactive(createEmptyBillForm());
 
 const prototypeBills = [
   {
@@ -385,6 +559,7 @@ const exportJobs = ref([]);
 
 const currentMeta = computed(() => metaMap[currentView.value]);
 const avatarText = computed(() => (session.nickname || session.username || "U").slice(0, 2).toUpperCase());
+const billTotalPages = computed(() => Math.max(1, Math.ceil(billPage.total / billPage.size)));
 
 async function login() {
   loginError.value = validateLoginForm();
@@ -432,6 +607,62 @@ function clearLoginError() {
   loginError.value = "";
 }
 
+async function register() {
+  registerError.value = validateRegisterForm();
+  if (registerError.value) {
+    return;
+  }
+
+  try {
+    await registerClient(registerForm);
+    loginForm.identity = registerForm.username;
+    loginForm.password = registerForm.password;
+    resetRegisterForm();
+    authMode.value = "login";
+    notify("注册成功", "账号已创建，可直接点击进入工作台。", "backend");
+  } catch (error) {
+    registerError.value = error.message || "注册失败，请检查 auth-service。";
+  }
+}
+
+function validateRegisterForm() {
+  if (!registerForm.username) {
+    return "请输入用户名。";
+  }
+  if (!/^[a-zA-Z0-9_]{3,32}$/.test(registerForm.username)) {
+    return "用户名需为 3-32 位字母、数字或下划线。";
+  }
+  if (!registerForm.password || registerForm.password.length < 6) {
+    return "密码至少需要 6 位。";
+  }
+  if (registerForm.password !== registerForm.confirmPassword) {
+    return "两次输入的密码不一致。";
+  }
+  return "";
+}
+
+function switchAuthMode(mode) {
+  authMode.value = mode;
+  loginError.value = "";
+  registerError.value = "";
+}
+
+function clearRegisterError() {
+  registerError.value = "";
+}
+
+function resetRegisterForm() {
+  Object.assign(registerForm, {
+    username: "",
+    password: "",
+    confirmPassword: "",
+    nickname: "",
+    mobile: "",
+    email: "",
+    companyId: 2,
+  });
+}
+
 function logout() {
   setAccessToken("");
   session.loggedIn = false;
@@ -441,13 +672,115 @@ function logout() {
 
 async function loadBills() {
   try {
-    const page = await fetchBillPage();
+    const page = await fetchBillPage({
+      pageNo: billPage.current,
+      pageSize: billPage.size,
+      keyword: billQuery.keyword,
+      status: billQuery.status,
+    });
     const records = Array.isArray(page?.records) ? page.records : [];
-    savedBills.value = records.length ? records.map(normalizeBill) : [...prototypeBills];
-    notify("提单数据已同步", records.length ? "已读取 user-service 提单分页接口。" : "后端暂无提单数据，保留原型示例。", "backend");
+    savedBills.value = records.map(normalizeBill);
+    billPage.current = Number(page?.current || billPage.current);
+    billPage.size = Number(page?.size || billPage.size);
+    billPage.total = Number(page?.total || 0);
+    selectedBillId.value = savedBills.value[0]?.id || "";
+    notify("提单数据已同步", "已读取 user-service 提单分页接口。", "backend");
   } catch (error) {
     savedBills.value = [...prototypeBills];
+    billPage.total = savedBills.value.length;
     notify("提单接口待检查", error.message || "已保留原型示例数据。", "error");
+  }
+}
+
+function searchBills() {
+  billPage.current = 1;
+  loadBills();
+}
+
+function resetBillFilters() {
+  billQuery.keyword = "";
+  billQuery.status = "";
+  searchBills();
+}
+
+function changeBillPage(step) {
+  const nextPage = billPage.current + step;
+  if (nextPage < 1 || nextPage > billTotalPages.value) {
+    return;
+  }
+  billPage.current = nextPage;
+  loadBills();
+}
+
+function startCreateBill() {
+  Object.assign(billForm, createEmptyBillForm());
+  billEditor.mode = "create";
+  billEditor.editingId = null;
+  billEditor.error = "";
+  billEditor.open = true;
+}
+
+function startEditBill(bill) {
+  Object.assign(billForm, {
+    blNo: bill.blNo,
+    bookingNo: bill.bookingNo === "待补充" ? "" : bill.bookingNo,
+    vesselVoyage: bill.vessel,
+    portOfLoading: bill.pol === "待补充" ? "" : bill.pol,
+    portOfDischarge: bill.pod === "待补充" ? "" : bill.pod,
+    placeOfReceipt: bill.placeOfReceipt || "",
+    placeOfDelivery: bill.placeOfDelivery || "",
+    goodsName: bill.goodsName === "待补充" ? "" : bill.goodsName,
+    quantity: parseQuantityValue(bill.quantity),
+    packageUnit: parseQuantityUnit(bill.quantity),
+    status: bill.rawStatus || "DRAFT",
+    remark: bill.remark || "",
+  });
+  billEditor.mode = "edit";
+  billEditor.editingId = bill.id;
+  billEditor.error = "";
+  billEditor.open = true;
+}
+
+function closeBillEditor() {
+  billEditor.open = false;
+  billEditor.error = "";
+}
+
+async function submitBill() {
+  if (!billForm.blNo) {
+    billEditor.error = "请输入提单号。";
+    return;
+  }
+  billEditor.error = "";
+  try {
+    const payload = {
+      ...billForm,
+      quantity: billForm.quantity === "" || billForm.quantity == null ? null : Number(billForm.quantity),
+    };
+    if (billEditor.mode === "create") {
+      await createBill(payload);
+      notify("提单已创建", "新提单已写入 user-service。", "backend");
+    } else {
+      await updateBill(billEditor.editingId, payload);
+      notify("提单已更新", "修改内容已保存。", "backend");
+    }
+    closeBillEditor();
+    await loadBills();
+  } catch (error) {
+    billEditor.error = error.message || "提单保存失败。";
+  }
+}
+
+async function removeBill(bill) {
+  try {
+    await deleteBill(bill.id);
+    notify("提单已删除", `${bill.blNo} 已从列表移除。`, "backend");
+    if (savedBills.value.length === 1 && billPage.current > 1) {
+      billPage.current -= 1;
+    }
+    await loadBills();
+  } catch (error) {
+    notify("删除失败", error.message || "请检查 user-service。", "error");
   }
 }
 
@@ -521,10 +854,16 @@ function normalizeBill(bill) {
   return {
     id: String(bill.id ?? bill.blNo ?? Date.now()),
     blNo: bill.blNo || "未命名提单",
+    bookingNo: bill.bookingNo || "待补充",
     vessel: bill.vesselVoyage || bill.vessel || "待补充",
     pol: bill.pol || bill.portOfLoading || "待补充",
     pod: bill.pod || bill.portOfDischarge || "待补充",
-    status: bill.status || "后端数据",
+    placeOfReceipt: bill.placeOfReceipt || "",
+    placeOfDelivery: bill.placeOfDelivery || "",
+    rawStatus: bill.status || "DRAFT",
+    status: formatBillStatus(bill.status || "DRAFT"),
+    parseStatus: bill.parseStatus || "NONE",
+    remark: bill.remark || "",
     goodsName: bill.goodsName || "待补充",
     quantity: bill.quantity || "待补充",
     detailFields: [
@@ -532,8 +871,52 @@ function normalizeBill(bill) {
       { label: "目的港", value: bill.pod || bill.portOfDischarge || "待补充" },
       { label: "订舱号", value: bill.bookingNo || "待补充" },
       { label: "解析状态", value: bill.parseStatus || "待补充" },
+      { label: "收货地", value: bill.placeOfReceipt || "待补充" },
+      { label: "交付地", value: bill.placeOfDelivery || "待补充" },
     ],
   };
+}
+
+function createEmptyBillForm() {
+  return {
+    blNo: "",
+    bookingNo: "",
+    vesselVoyage: "",
+    portOfLoading: "",
+    portOfDischarge: "",
+    placeOfReceipt: "",
+    placeOfDelivery: "",
+    goodsName: "",
+    quantity: "",
+    packageUnit: "CTN",
+    status: "DRAFT",
+    remark: "",
+  };
+}
+
+function formatBillStatus(status) {
+  const map = {
+    DRAFT: "草稿",
+    CONFIRMED: "已确认",
+    ARCHIVED: "已归档",
+  };
+  return map[status] || status || "未知";
+}
+
+function parseQuantityValue(quantity) {
+  if (!quantity || quantity === "待补充") {
+    return "";
+  }
+  const matched = String(quantity).match(/\d+/);
+  return matched ? Number(matched[0]) : "";
+}
+
+function parseQuantityUnit(quantity) {
+  if (!quantity || quantity === "待补充") {
+    return "CTN";
+  }
+  const parts = String(quantity).trim().split(/\s+/);
+  return parts[1] || "CTN";
 }
 
 function normalizeTemplate(template) {
