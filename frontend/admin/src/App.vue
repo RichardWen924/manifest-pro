@@ -102,34 +102,42 @@
       </header>
 
       <section v-if="currentView === 'dashboard'" class="content-grid">
-        <article class="metric-card dark">
-          <p>今日上传提单</p>
-          <strong>28</strong>
-          <span>较昨日 +12%</span>
-        </article>
-        <article class="metric-card">
-          <p>待确认解析</p>
-          <strong>7</strong>
-          <span>需要业务人员复核</span>
-        </article>
-        <article class="metric-card">
-          <p>活跃用户</p>
-          <strong>{{ users.length }}</strong>
-          <span>来自 API / mock fallback</span>
-        </article>
-        <article class="panel-card wide">
-          <div class="panel-title">
-            <h2>工作台看板预留</h2>
-            <p>后续可接入上传趋势、解析成功率、异常任务、企业使用排行等数据。</p>
-          </div>
-          <div class="timeline">
-            <div v-for="task in dashboardTasks" :key="task.title" class="timeline-item">
-              <span></span>
-              <div>
-                <strong>{{ task.title }}</strong>
-                <p>{{ task.desc }}</p>
-              </div>
+        <article
+          v-for="chart in dashboardCharts"
+          :key="chart.key"
+          class="chart-card"
+        >
+          <div class="chart-head">
+            <div>
+              <h2>{{ chart.title }} <span class="help-dot">?</span></h2>
+              <p>过去 7 天</p>
             </div>
+            <div class="chart-stat">
+              <strong>{{ chart.total }}</strong>
+              <span class="trend-badge" :class="chart.trendClass">{{ chart.trendText }}</span>
+            </div>
+          </div>
+          <div class="chart-stage">
+            <svg viewBox="0 0 720 240" role="img" :aria-label="chart.title">
+              <g class="grid-lines">
+                <line v-for="line in chart.grid" :key="line.y" x1="54" :y1="line.y" x2="690" :y2="line.y" />
+                <line v-for="x in chart.xLines" :key="x" :x1="x" y1="32" :x2="x" y2="196" />
+              </g>
+              <g class="axis-labels">
+                <text v-for="line in chart.grid" :key="line.label" x="42" :y="line.y + 5">{{ line.label }}</text>
+                <text v-for="point in chart.points" :key="point.label" :x="point.x" y="224">{{ point.label }}</text>
+              </g>
+              <polyline class="chart-line" :style="{ stroke: chart.color }" :points="chart.polyline" />
+              <circle
+                v-for="point in chart.points"
+                :key="point.label + point.value"
+                class="chart-point"
+                :style="{ fill: chart.color }"
+                :cx="point.x"
+                :cy="point.y"
+                r="4"
+              />
+            </svg>
           </div>
         </article>
       </section>
@@ -366,10 +374,25 @@ const userForm = reactive({
   status: "enabled",
 });
 
-const dashboardTasks = [
-  { title: "上传趋势", desc: "展示用户上传提单数量、成功率和日环比。" },
-  { title: "解析质量", desc: "统计字段识别准确率、失败原因和人工修正次数。" },
-  { title: "企业排行", desc: "按企业维度展示使用量、活跃用户和模板使用情况。" },
+const dashboardSeries = [
+  {
+    key: "billCount",
+    title: "提单数量",
+    color: "#20c7c9",
+    values: [12, 18, 15, 26, 32, 28, 41],
+  },
+  {
+    key: "tokenCost",
+    title: "提单处理 Token 消耗",
+    color: "#2f7cff",
+    values: [6800, 8200, 7600, 11200, 13400, 12800, 15600],
+  },
+  {
+    key: "activeUsers",
+    title: "用户活跃数量",
+    color: "#ff7a45",
+    values: [3, 5, 4, 8, 9, 7, 11],
+  },
 ];
 
 const permissions = [
@@ -398,6 +421,8 @@ const sidebarItems = computed(() => [
 ]);
 
 const selectedUser = computed(() => users.value.find((user) => user.id === selectedUserId.value));
+
+const dashboardCharts = computed(() => dashboardSeries.map(createLineChart));
 
 async function login() {
   try {
@@ -503,6 +528,62 @@ async function deleteUser(user) {
   }
   await loadUsers();
   notify("用户已删除", `${user.nickname} 已从列表移除。`, apiSource.value);
+}
+
+function createLineChart(series) {
+  const maxValue = Math.max(...series.values, 1);
+  const upper = Math.ceil(maxValue * 1.18);
+  const latest = series.values.at(-1) ?? 0;
+  const previous = series.values.at(-2) ?? latest;
+  const trend = previous === 0 ? 0 : Math.round(((latest - previous) / previous) * 100);
+  const labels = getLastSevenDayLabels();
+  const width = 636;
+  const left = 54;
+  const top = 32;
+  const height = 164;
+  const step = width / (series.values.length - 1);
+  const points = series.values.map((value, index) => {
+    const x = left + index * step;
+    const y = top + height - (value / upper) * height;
+    return {
+      label: labels[index],
+      value,
+      x,
+      y,
+    };
+  });
+  return {
+    ...series,
+    total: formatCompactNumber(latest),
+    trendText: `${trend > 0 ? "+" : ""}${trend}%`,
+    trendClass: trend > 0 ? "positive" : trend < 0 ? "negative" : "flat",
+    points,
+    polyline: points.map((point) => `${point.x},${point.y}`).join(" "),
+    xLines: points.map((point) => point.x),
+    grid: [1, 0.75, 0.5, 0.25, 0].map((ratio) => ({
+      y: top + height * (1 - ratio),
+      label: formatCompactNumber(Math.round(upper * ratio)),
+    })),
+  };
+}
+
+function getLastSevenDayLabels() {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date();
+    date.setDate(date.getDate() - (6 - index));
+    return formatter.format(date);
+  });
+}
+
+function formatCompactNumber(value) {
+  if (value >= 10000) {
+    return `${(value / 1000).toFixed(1)}k`;
+  }
+  return String(value);
 }
 
 function notify(title, message, type = "backend") {
