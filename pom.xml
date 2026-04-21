@@ -22,6 +22,7 @@
     <modules>
         <module>common</module>
         <module>model</module>
+        <module>api/auth-api</module>
         <module>gateway</module>
         <module>service</module>
     </modules>

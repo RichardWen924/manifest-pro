@@ -1,13 +1,11 @@
-package com.manifestreader.auth;
+package com.manifest.auth;
 
-import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 
-@EnableFeignClients(basePackages = "com.manifestreader")
-@MapperScan(basePackages = "com.manifestreader.auth.mapper")
-@SpringBootApplication(scanBasePackages = "com.manifestreader")
+@EnableFeignClients(basePackages = {"com.manifestreader.api", "com.manifest.auth"})
+@SpringBootApplication(scanBasePackages = {"com.manifest.auth", "com.manifestreader.common"})
 public class AuthApplication {
 
     public static void main(String[] args) {

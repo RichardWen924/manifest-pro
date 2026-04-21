@@ -16,3 +16,16 @@ management:
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
+
+manifest:
+  gateway:
+    security:
+      whitelist:
+        - /actuator/**
+        - /swagger-ui.html
+        - /webjars/**
+        - /v3/api-docs/**
+        - /auth/login
+        - /auth/token/refresh
+        - /auth/token/introspect
+        - /auth/public-key
