@@ -3,11 +3,6 @@ spring:
     name: manifest-reader-auth
   config:
     import: optional:classpath:dev.yml
-  autoconfigure:
-    exclude:
-      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
-      - org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration
-      - com.baomidou.mybatisplus.autoconfigure.MybatisPlusAutoConfiguration
 
 server:
   port: 8083
@@ -26,7 +21,7 @@ springdoc:
 manifest:
   auth:
     mybatis:
-      enabled: ${AUTH_MYBATIS_ENABLED:false}
+      enabled: ${AUTH_MYBATIS_ENABLED:true}
     token:
       issuer: ${AUTH_TOKEN_ISSUER:manifest-reader-auth}
       access-token-ttl: ${AUTH_ACCESS_TOKEN_TTL:30m}

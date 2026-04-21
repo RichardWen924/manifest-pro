@@ -18,6 +18,9 @@ async function request(path, options = {}) {
   }
 
   const payload = await response.json();
+  if (payload && payload.success === false) {
+    throw new Error(payload.message || "请求处理失败");
+  }
   return withSource(payload.data ?? payload, "backend");
 }
 
@@ -34,19 +37,10 @@ function withSource(data, source) {
 }
 
 export async function loginAdmin(payload) {
-  try {
-    return await request("/login", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-  } catch (error) {
-    return {
-      username: payload.username,
-      role: payload.role,
-      accessToken: "mock-token",
-      __source: "mock",
-    };
-  }
+  return request("/login", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function fetchUsers(filters = {}) {

@@ -39,9 +39,9 @@ ON DUPLICATE KEY UPDATE
 INSERT INTO `sys_user`
 (`id`, `company_id`, `username`, `password_hash`, `nickname`, `mobile`, `email`, `status`, `remark`)
 VALUES
-  (1, 1, 'admin', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIbDr.i', '平台管理员', NULL, 'admin@manifest.local', 1, 'Seed admin user'),
-  (2, 2, 'tenant_admin', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIbDr.i', '测试租户管理员', NULL, 'tenant-admin@manifest.local', 1, 'Seed tenant admin'),
-  (3, 2, 'tenant_user', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIbDr.i', '测试租户用户', NULL, 'tenant-user@manifest.local', 1, 'Seed tenant user')
+  (1, 1, 'admin', '$2a$10$7QmQhLRPPg7LUot.NUmu2eLNMMQavEwnmYk1Fl1bKa9tnOZM1gCnG', '平台管理员', NULL, 'admin@manifest.local', 1, 'Seed admin user'),
+  (2, 2, 'tenant_admin', '$2a$10$7QmQhLRPPg7LUot.NUmu2eLNMMQavEwnmYk1Fl1bKa9tnOZM1gCnG', '测试租户管理员', NULL, 'tenant-admin@manifest.local', 1, 'Seed tenant admin'),
+  (3, 2, 'tenant_user', '$2a$10$7QmQhLRPPg7LUot.NUmu2eLNMMQavEwnmYk1Fl1bKa9tnOZM1gCnG', '测试租户用户', NULL, 'tenant-user@manifest.local', 1, 'Seed tenant user')
 ON DUPLICATE KEY UPDATE
   `password_hash` = VALUES(`password_hash`),
   `nickname` = VALUES(`nickname`),
@@ -94,4 +94,3 @@ ON DUPLICATE KEY UPDATE
   `sort_no` = VALUES(`sort_no`),
   `status` = VALUES(`status`),
   `remark` = VALUES(`remark`);
-

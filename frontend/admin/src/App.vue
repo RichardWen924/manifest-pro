@@ -38,7 +38,7 @@
         </label>
         <label>
           密码
-          <input v-model.trim="loginForm.password" type="password" placeholder="任意密码" required />
+          <input v-model.trim="loginForm.password" type="password" placeholder="请输入账号密码" required />
         </label>
         <label>
           登录身份
@@ -407,7 +407,7 @@ async function login() {
     session.role = result.role || loginForm.role;
     currentView.value = "dashboard";
     await loadUsers();
-    notify("登录成功", apiSource.value === "backend" ? "已通过后端接口登录。" : "后端未响应，已进入 mock 原型模式。", apiSource.value);
+    notify("登录成功", "已通过后端账号密码校验。", apiSource.value);
   } catch (error) {
     notify("登录失败", error.message || "请检查后端服务和网络连接。", "error");
   }

@@ -1,9 +1,15 @@
 package com.manifestreader.admin.model.dto;
 
+import jakarta.validation.constraints.NotBlank;
+
 public class AdminLoginRequest {
 
+    @NotBlank(message = "username cannot be blank")
     private String username;
+
+    @NotBlank(message = "password cannot be blank")
     private String password;
+
     private String role;
 
     public String getUsername() {

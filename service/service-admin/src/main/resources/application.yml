@@ -3,11 +3,6 @@ spring:
     name: manifest-reader-admin
   config:
     import: optional:classpath:dev.yml
-  autoconfigure:
-    exclude:
-      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
-      - org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration
-      - com.baomidou.mybatisplus.autoconfigure.MybatisPlusAutoConfiguration
 
 server:
   port: 8081
@@ -23,3 +18,8 @@ management:
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
+
+manifest:
+  admin:
+    mybatis:
+      enabled: ${ADMIN_MYBATIS_ENABLED:true}
