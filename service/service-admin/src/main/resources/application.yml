@@ -1,0 +1,12 @@
+spring:
+  application:
+    name: manifest-reader-admin
+  config:
+    import: optional:classpath:dev.yml
+
+server:
+  port: 8081
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
