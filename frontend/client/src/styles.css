@@ -1073,6 +1073,47 @@ button:disabled {
   text-align: left;
 }
 
+.result-list .extract-result-card {
+  display: grid;
+  align-items: start;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.extract-result-card small {
+  grid-column: 1 / -1;
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.mapping-preview {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 7px;
+  margin-top: 8px;
+}
+
+.mapping-preview p {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.46fr) minmax(0, 1fr);
+  gap: 10px;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 12px;
+}
+
+.mapping-preview b {
+  color: #7fc7ff;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mapping-preview em {
+  color: rgba(255, 255, 255, 0.6);
+  font-style: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .job-card {
   background: var(--soft);
   color: var(--ink);

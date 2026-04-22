@@ -353,9 +353,16 @@
         <article class="panel-card dark-panel">
           <h2>提取结果</h2>
           <div v-if="extractedTemplates.length" class="result-list">
-            <button v-for="item in extractedTemplates" :key="item.id" type="button">
+            <button v-for="item in extractedTemplates" :key="item.id" class="extract-result-card" type="button">
               <span>{{ item.name }}</span>
               <strong>{{ item.fields }} fields</strong>
+              <small>{{ item.source }}</small>
+              <div v-if="item.mappings?.length" class="mapping-preview">
+                <p v-for="mapping in item.mappings.slice(0, 4)" :key="mapping.placeholderKey">
+                  <b>{{ mapping.placeholderKey }}</b>
+                  <em>{{ mapping.description || mapping.originalText || "待确认字段" }}</em>
+                </p>
+              </div>
             </button>
           </div>
           <p v-else>上传文件后，这里会预览模板字段、置信度和可编辑映射。</p>
@@ -405,6 +412,7 @@ import { computed, reactive, ref } from "vue";
 import {
   createBill,
   deleteBill,
+  extractTemplateFile,
   fetchBillPage,
   fetchTemplateOptions,
   initFileUpload,
@@ -413,6 +421,7 @@ import {
   setAccessToken,
   updateBill,
 } from "./api/clientApi";
+import { normalizeDifyWorkflowMappings } from "./utils/difyWorkflow";
 
 const authMode = ref("login");
 
@@ -876,20 +885,30 @@ async function extractTemplate() {
     notify("请先上传文件", "选择一个提单样本文件后再进行模板提取。", "error");
     return;
   }
+  let uploadResult = null;
   try {
-    await initFileUpload(extractFile.value, "TEMPLATE_EXTRACT");
+    uploadResult = await extractTemplateFile(extractFile.value);
   } catch (error) {
-    notify("文件接口待实现", error.message || "后端上传初始化暂未完成，先生成原型记录。", "error");
+    notify("模板提取接口待配置", error.message || "Dify 工作流暂未配置，先生成原型记录。", "error");
   }
+  const mappings = Array.isArray(uploadResult?.mappings)
+    ? uploadResult.mappings
+    : normalizeDifyWorkflowMappings(uploadResult);
   extractedTemplates.value = [
     {
       id: Date.now(),
       name: extractFile.value.name.replace(/\.[^.]+$/, "") || "新模板",
-      fields: 18,
+      fields: mappings.length || 18,
+      mappings,
+      source: mappings.length ? "已兼容 Dify workflow mappings" : "原型占位结果",
     },
     ...extractedTemplates.value,
   ];
-  notify("模板已提取", "已生成原型模板结果，可在后续接入真实解析。", "backend");
+  notify(
+    "模板已提取",
+    mappings.length ? `已解析 ${mappings.length} 个 Dify 字段映射。` : "已生成原型模板结果，可在后续接入真实解析。",
+    "backend",
+  );
 }
 
 async function createExportJob() {

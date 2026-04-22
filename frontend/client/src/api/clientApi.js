@@ -12,8 +12,9 @@ export function getAccessToken() {
 }
 
 async function request(base, path, options = {}) {
+  const isFormData = options.body instanceof FormData;
   const headers = {
-    "Content-Type": "application/json",
+    ...(isFormData ? {} : { "Content-Type": "application/json" }),
     ...options.headers,
   };
   if (accessToken) {
@@ -104,6 +105,15 @@ export async function deleteBill(id) {
 
 export async function fetchTemplateOptions() {
   return request(USER_BASE, "/templates/usable");
+}
+
+export async function extractTemplateFile(file) {
+  const formData = new FormData();
+  formData.append("file", file);
+  return request(USER_BASE, "/templates/extract", {
+    method: "POST",
+    body: formData,
+  });
 }
 
 export async function initFileUpload(file, bizType) {
