@@ -11,6 +11,10 @@ export function getAccessToken() {
   return accessToken;
 }
 
+export function buildUserApiUrl(path) {
+  return `${USER_BASE}${path}`;
+}
+
 async function request(base, path, options = {}) {
   const isFormData = options.body instanceof FormData;
   const headers = {
@@ -107,12 +111,45 @@ export async function fetchTemplateOptions() {
   return request(USER_BASE, "/templates/usable");
 }
 
+export async function fetchTemplateManagePage(params = {}) {
+  const search = new URLSearchParams();
+  search.set("pageNo", params.pageNo || 1);
+  search.set("pageSize", params.pageSize || 8);
+  if (params.keyword) {
+    search.set("keyword", params.keyword);
+  }
+  if (params.status !== "" && params.status != null) {
+    search.set("status", params.status);
+  }
+  return request(USER_BASE, `/templates/manage/page?${search.toString()}`);
+}
+
+export async function updateTemplateStatus(id, status) {
+  return request(USER_BASE, `/templates/manage/${id}/status`, {
+    method: "PUT",
+    body: JSON.stringify({ status }),
+  });
+}
+
+export async function deleteTemplateDefinition(id) {
+  return request(USER_BASE, `/templates/manage/${id}`, {
+    method: "DELETE",
+  });
+}
+
 export async function extractTemplateFile(file) {
   const formData = new FormData();
   formData.append("file", file);
   return request(USER_BASE, "/templates/extract", {
     method: "POST",
     body: formData,
+  });
+}
+
+export async function saveGeneratedTemplate(payload) {
+  return request(USER_BASE, "/templates/extract/save", {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
 

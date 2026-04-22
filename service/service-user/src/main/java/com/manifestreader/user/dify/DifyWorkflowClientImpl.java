@@ -36,6 +36,11 @@ public class DifyWorkflowClientImpl implements DifyWorkflowClient {
     @Override
     public String runTemplateExtraction(MultipartFile file) {
         validateConfig();
+        log.info("Dify template extraction start, baseUrl={}, uploadPath={}, workflowPath={}, fileName={}",
+                normalizeBaseUrl(properties.getBaseUrl()),
+                resolveEndpoint(properties.getFileUploadPath()),
+                resolveEndpoint(properties.getWorkflowRunPath()),
+                file.getOriginalFilename());
         String uploadFileId = uploadFile(file);
         return runWorkflow(uploadFileId);
     }

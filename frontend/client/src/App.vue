@@ -106,7 +106,7 @@
           class="menu-item"
           :class="{ active: currentView === item.key }"
           type="button"
-          @click="currentView = item.key"
+          @click="switchView(item.key)"
         >
           <span class="menu-icon">{{ item.icon }}</span>
           <span v-if="!sidebarCollapsed">{{ item.label }}</span>
@@ -360,19 +360,195 @@
         <article class="panel-card dark-panel">
           <h2>提取结果</h2>
           <div v-if="extractedTemplates.length" class="result-list">
-            <button v-for="item in extractedTemplates" :key="item.id" class="extract-result-card" type="button">
-              <span>{{ item.name }}</span>
-              <strong>{{ item.fields }} fields</strong>
-              <small>{{ item.source }}</small>
-              <div v-if="item.mappings?.length" class="mapping-preview">
-                <p v-for="mapping in item.mappings.slice(0, 4)" :key="mapping.placeholderKey">
-                  <b>{{ mapping.placeholderKey }}</b>
-                  <em>{{ mapping.description || mapping.originalText || "待确认字段" }}</em>
-                </p>
+            <button
+              v-for="item in extractedTemplates"
+              :key="item.id"
+              class="extract-result-card"
+              :class="{ active: selectedExtractId === item.id }"
+              type="button"
+              @click="selectExtractResult(item.id)"
+            >
+              <div class="extract-result-head">
+                <div>
+                  <span>{{ item.name }}</span>
+                  <small>{{ item.templateMessage || item.source }}</small>
+                </div>
+                <strong>{{ item.fields }} fields</strong>
               </div>
             </button>
           </div>
           <p v-else>上传文件后，这里会预览模板字段、置信度和可编辑映射。</p>
+        </article>
+
+      </section>
+
+      <section v-if="currentView === 'templates'" class="panel-card">
+        <div class="panel-title">
+          <div>
+            <h2>模板管理</h2>
+            <p>管理已经保存的提单模板，查看存储位置、版本、字段数量和启用状态。</p>
+          </div>
+          <div class="bill-actions">
+            <button class="ghost-button" type="button" @click="resetTemplateFilters">重置</button>
+            <button class="secondary-button" type="button" @click="loadManagedTemplates">刷新</button>
+          </div>
+        </div>
+
+        <div class="bill-toolbar template-toolbar">
+          <label>
+            关键词
+            <input v-model.trim="templateQuery.keyword" placeholder="模板名称 / 模板编码" @keyup.enter="searchManagedTemplates" />
+          </label>
+          <label>
+            状态
+            <select v-model="templateQuery.status" @change="searchManagedTemplates">
+              <option value="">全部状态</option>
+              <option value="1">启用</option>
+              <option value="0">停用</option>
+            </select>
+          </label>
+          <button class="secondary-button" type="button" @click="searchManagedTemplates">查询</button>
+        </div>
+
+        <div class="template-manage-list">
+          <article v-for="template in managedTemplates" :key="template.id" class="template-manage-card">
+            <div class="template-manage-main">
+              <div>
+                <span class="template-type">{{ template.templateType || "BILL_DOCX" }}</span>
+                <h3>{{ template.templateName }}</h3>
+                <p>{{ template.templateCode }}</p>
+              </div>
+              <span class="pill" :class="{ muted: template.status !== 1 }">{{ template.status === 1 ? "启用" : "停用" }}</span>
+            </div>
+            <div class="template-storage-grid">
+              <div>
+                <span>文件名</span>
+                <strong>{{ template.fileName || "未关联文件" }}</strong>
+              </div>
+              <div>
+                <span>存储方式</span>
+                <strong>{{ template.storageType || "LOCAL" }}</strong>
+              </div>
+              <div>
+                <span>存储位置</span>
+                <strong>{{ template.objectKey || "暂无存储位置" }}</strong>
+              </div>
+              <div>
+                <span>版本 / 字段数</span>
+                <strong>v{{ template.versionNo || 1 }} / {{ template.fieldCount || 0 }}</strong>
+              </div>
+            </div>
+            <div class="template-manage-actions">
+              <button class="ghost-button" type="button" @click="toggleTemplateStatus(template)">
+                {{ template.status === 1 ? "停用" : "启用" }}
+              </button>
+              <button class="danger-button" type="button" @click="removeManagedTemplate(template)">删除</button>
+            </div>
+          </article>
+        </div>
+        <div v-if="!managedTemplates.length" class="empty-state">暂无模板。可以先在“提单模版提取”里保存一个模板。</div>
+        <div class="pagination-bar">
+          <span>共 {{ templatePage.total }} 条，第 {{ templatePage.current }} / {{ templateTotalPages }} 页</span>
+          <div>
+            <button class="ghost-button" type="button" :disabled="templatePage.current <= 1" @click="changeTemplatePage(-1)">上一页</button>
+            <button class="ghost-button" type="button" :disabled="templatePage.current >= templateTotalPages" @click="changeTemplatePage(1)">下一页</button>
+          </div>
+        </div>
+      </section>
+
+      <section v-if="extractDialogOpen && selectedExtractResult" class="extract-dialog-backdrop">
+        <article class="extract-dialog">
+          <header class="extract-dialog-head">
+            <div>
+              <p class="eyebrow">Template Builder</p>
+              <h2>确认生成模板</h2>
+              <span>{{ selectedExtractResult.name }}</span>
+            </div>
+            <button class="mini-button" type="button" @click="closeExtractDialog">关闭</button>
+          </header>
+          <div class="extract-workbench">
+            <section class="file-preview-pane">
+              <div class="panel-title compact">
+                <h2>剔除数据后的模板预览</h2>
+                <p>左侧只展示模板结构和占位符，右侧保留本次提取到的数据用于人工核对。</p>
+              </div>
+              <div class="blank-template-note">
+                <strong>{{ selectedExtractResult.templateStatus === "GENERATED" ? "已生成可下载 DOCX 模板" : "当前为浏览器模板预览" }}</strong>
+                <span>{{ templatePreviewMessage }}</span>
+              </div>
+              <div class="template-preview-sheet" aria-label="剔除数据后的模板预览">
+                <div class="template-preview-brand">
+                  <span>MR</span>
+                  <div>
+                    <strong>Bill of Lading Template</strong>
+                    <small>{{ selectedExtractResult.name }}</small>
+                  </div>
+                </div>
+                <div class="template-preview-lines">
+                  <article v-for="mapping in selectedExtractResult.mappings" :key="`preview-${mapping.id}`" class="template-preview-line">
+                    <span>{{ mapping.description || mapping.placeholderKey || "未命名字段" }}</span>
+                    <code>{{ formatPlaceholder(mapping.placeholderKey) }}</code>
+                  </article>
+                </div>
+                <p class="template-preview-foot">
+                  已剔除样本中的实际业务数据。保存模板时仅写入字段结构、占位符和排序，不保存原始提单数据。
+                </p>
+              </div>
+            </section>
+
+            <section class="mapping-editor-pane">
+              <div class="panel-title compact">
+                <h2>数据与占位符对应</h2>
+                <p>这些数据只用于本次校对占位符位置，确认保存模板时不会作为提单业务数据入库。</p>
+              </div>
+
+              <div class="mapping-editor-list">
+                <article v-for="(mapping, index) in selectedExtractResult.mappings" :key="mapping.id" class="mapping-editor-row">
+                  <div class="mapping-row-head">
+                    <strong>#{{ index + 1 }} {{ mapping.placeholderKey || "未命名字段" }}</strong>
+                    <div>
+                      <button class="mini-button" type="button" :disabled="index === 0" @click="moveMapping(index, -1)">上移</button>
+                      <button class="mini-button" type="button" :disabled="index === selectedExtractResult.mappings.length - 1" @click="moveMapping(index, 1)">下移</button>
+                    </div>
+                  </div>
+                  <label>
+                    模板占位符
+                    <input v-model.trim="mapping.placeholderKey" placeholder="placeholder_key" />
+                  </label>
+                  <label>
+                    被剔除的数据
+                    <textarea v-model="mapping.originalText" rows="3" placeholder="Dify 提取出的原始内容，仅用于核对"></textarea>
+                  </label>
+                  <label>
+                    字段描述
+                    <input v-model.trim="mapping.description" placeholder="字段说明" />
+                  </label>
+                </article>
+              </div>
+
+              <details v-if="selectedExtractResult.rawText" class="raw-dify-preview">
+                <summary>查看原始 Dify JSON/Text</summary>
+                <pre>{{ selectedExtractResult.rawText }}</pre>
+              </details>
+
+              <div class="extract-save-actions">
+                <button class="primary-button" type="button" :disabled="savingTemplate" @click="saveTemplateDefinition">
+                  {{ savingTemplate ? "正在保存模板" : "确认保存模板" }}
+                </button>
+                <a
+                  v-if="selectedExtractResult.blankTemplateDownloadUrl"
+                  class="download-template-link"
+                  :href="buildUserApiUrl(selectedExtractResult.blankTemplateDownloadUrl.replace(/^\/user/, ''))"
+                  download
+                >
+                  下载空白模板
+                </a>
+              </div>
+              <p v-if="extractSaveFeedback.message" class="inline-save-feedback" :class="extractSaveFeedback.type">
+                {{ extractSaveFeedback.message }}
+              </p>
+            </section>
+          </div>
         </article>
       </section>
 
@@ -417,15 +593,20 @@
 <script setup>
 import { computed, reactive, ref } from "vue";
 import {
+  buildUserApiUrl,
   createBill,
   deleteBill,
+  deleteTemplateDefinition,
   extractTemplateFile,
   fetchBillPage,
+  fetchTemplateManagePage,
   fetchTemplateOptions,
   initFileUpload,
   loginClient,
   registerClient,
+  saveGeneratedTemplate,
   setAccessToken,
+  updateTemplateStatus,
   updateBill,
 } from "./api/clientApi";
 import { normalizeDifyWorkflowMappings } from "./utils/difyWorkflow";
@@ -461,7 +642,14 @@ const selectedBillIds = ref([]);
 const extractFile = ref(null);
 const exportFile = ref(null);
 const extractingTemplate = ref(false);
+const savingTemplate = ref(false);
 const extractedFileKeys = ref(new Set());
+const selectedExtractId = ref("");
+const extractDialogOpen = ref(false);
+const extractSaveFeedback = reactive({
+  type: "",
+  message: "",
+});
 const toasts = ref([]);
 const loginError = ref("");
 const registerError = ref("");
@@ -475,9 +663,20 @@ const billQuery = reactive({
   status: "",
 });
 
+const templateQuery = reactive({
+  keyword: "",
+  status: "",
+});
+
 const billPage = reactive({
   current: 1,
   size: 5,
+  total: 0,
+});
+
+const templatePage = reactive({
+  current: 1,
+  size: 8,
   total: 0,
 });
 
@@ -563,6 +762,7 @@ const navItems = [
   { key: "overview", label: "用户总览", icon: "◎" },
   { key: "bills", label: "已存提单数据", icon: "▤" },
   { key: "extract", label: "提单模版提取", icon: "◇" },
+  { key: "templates", label: "模板管理", icon: "▧" },
   { key: "export", label: "按模版导出", icon: "↗" },
 ];
 
@@ -582,6 +782,11 @@ const metaMap = {
     title: "提单模版提取",
     description: "上传提单样本文件，提取模板字段和映射关系。",
   },
+  templates: {
+    eyebrow: "Template Library",
+    title: "模板管理",
+    description: "查看已保存模板、存储位置、版本与可用状态。",
+  },
   export: {
     eyebrow: "Template Export",
     title: "按模版导出",
@@ -594,19 +799,32 @@ const savedBills = ref([...prototypeBills]);
 const templateOptions = ref([...prototypeTemplates]);
 
 const extractedTemplates = ref([]);
+const managedTemplates = ref([]);
 const exportJobs = ref([]);
 
 const currentMeta = computed(() => metaMap[currentView.value]);
 const avatarText = computed(() => (session.nickname || session.username || "U").slice(0, 2).toUpperCase());
 const billTotalPages = computed(() => Math.max(1, Math.ceil(billPage.total / billPage.size)));
+const templateTotalPages = computed(() => Math.max(1, Math.ceil(templatePage.total / templatePage.size)));
 const currentExtractFileKey = computed(() => (extractFile.value ? buildFileKey(extractFile.value) : ""));
 const isCurrentExtractFileDone = computed(() => Boolean(currentExtractFileKey.value && extractedFileKeys.value.has(currentExtractFileKey.value)));
+const selectedExtractResult = computed(() => extractedTemplates.value.find((item) => item.id === selectedExtractId.value));
+const templatePreviewMessage = computed(() => {
+  const result = selectedExtractResult.value;
+  if (!result) {
+    return "";
+  }
+  if (result.templateStatus === "GENERATED") {
+    return "后端已基于 DOCX 生成真实空白模板，可下载校验版式。";
+  }
+  return result.templateMessage || "当前先根据 Dify 字段生成模板预览，PDF 转 DOCX 后续接入转换工具。";
+});
 const extractButtonText = computed(() => {
   if (extractingTemplate.value) {
     return "正在提取，请稍候";
   }
   if (isCurrentExtractFileDone.value) {
-    return "该文件已提取";
+    return "该文件已提取，不会重复请求 Dify";
   }
   return "开始提取模板";
 });
@@ -629,7 +847,7 @@ async function login() {
     session.nickname = result.username === "tenant_user" ? "测试用户" : result.username || loginPayload.username;
     session.companyCode = (loginPayload.companyCode || "TEST").toUpperCase();
     notify("登录成功", "已通过 auth-service 校验，正在同步用户端数据。", "backend");
-    await Promise.allSettled([loadBills(), loadTemplates()]);
+    await Promise.allSettled([loadBills(), loadTemplates(), loadManagedTemplates()]);
   } catch (error) {
     loginError.value = error.message || "请检查 auth-service、账号密码和数据库连接。";
   }
@@ -721,6 +939,13 @@ function logout() {
   session.loggedIn = false;
   currentView.value = "overview";
   notify("已退出", "客户端会话已结束。", "backend");
+}
+
+function switchView(view) {
+  currentView.value = view;
+  if (view === "templates") {
+    loadManagedTemplates();
+  }
 }
 
 async function loadBills() {
@@ -869,6 +1094,69 @@ async function loadTemplates() {
   }
 }
 
+async function loadManagedTemplates() {
+  try {
+    const page = await fetchTemplateManagePage({
+      pageNo: templatePage.current,
+      pageSize: templatePage.size,
+      keyword: templateQuery.keyword,
+      status: templateQuery.status,
+    });
+    managedTemplates.value = Array.isArray(page?.records) ? page.records : [];
+    templatePage.current = Number(page?.current || templatePage.current);
+    templatePage.size = Number(page?.size || templatePage.size);
+    templatePage.total = Number(page?.total || 0);
+  } catch (error) {
+    managedTemplates.value = [];
+    templatePage.total = 0;
+    notify("模板管理接口待检查", error.message || "请检查 user-service 模板管理接口。", "error");
+  }
+}
+
+function searchManagedTemplates() {
+  templatePage.current = 1;
+  loadManagedTemplates();
+}
+
+function resetTemplateFilters() {
+  templateQuery.keyword = "";
+  templateQuery.status = "";
+  searchManagedTemplates();
+}
+
+function changeTemplatePage(step) {
+  const nextPage = templatePage.current + step;
+  if (nextPage < 1 || nextPage > templateTotalPages.value) {
+    return;
+  }
+  templatePage.current = nextPage;
+  loadManagedTemplates();
+}
+
+async function toggleTemplateStatus(template) {
+  try {
+    const nextStatus = template.status === 1 ? 0 : 1;
+    await updateTemplateStatus(template.id, nextStatus);
+    notify("模板状态已更新", `${template.templateName} 已${nextStatus === 1 ? "启用" : "停用"}。`, "backend");
+    await Promise.allSettled([loadManagedTemplates(), loadTemplates()]);
+  } catch (error) {
+    notify("模板状态更新失败", error.message || "请检查 user-service。", "error");
+  }
+}
+
+async function removeManagedTemplate(template) {
+  try {
+    await deleteTemplateDefinition(template.id);
+    notify("模板已删除", `${template.templateName} 已从模板管理中移除。`, "backend");
+    if (managedTemplates.value.length === 1 && templatePage.current > 1) {
+      templatePage.current -= 1;
+    }
+    await Promise.allSettled([loadManagedTemplates(), loadTemplates()]);
+  } catch (error) {
+    notify("模板删除失败", error.message || "请检查 user-service。", "error");
+  }
+}
+
 function toggleBill(id) {
   selectedBillId.value = selectedBillId.value === id ? "" : id;
 }
@@ -910,7 +1198,7 @@ async function extractTemplate() {
   }
   const fileKey = currentExtractFileKey.value;
   if (extractedFileKeys.value.has(fileKey)) {
-    notify("文件已提取", "同一份文件只会发送一次 Dify 请求，请更换文件后再提取。", "error");
+    notify("文件已提取", "同一份文件已命中缓存，不会再次请求 Dify；如需重跑请刷新页面或更换文件。", "error");
     return;
   }
   extractingTemplate.value = true;
@@ -927,16 +1215,27 @@ async function extractTemplate() {
     ? uploadResult.mappings
     : normalizeDifyWorkflowMappings(uploadResult);
   extractedFileKeys.value = new Set([...extractedFileKeys.value, fileKey]);
+  const resultId = `extract-${Date.now()}`;
   extractedTemplates.value = [
     {
-      id: Date.now(),
+      id: resultId,
+      extractId: uploadResult?.extractId || resultId,
       name: extractFile.value.name.replace(/\.[^.]+$/, "") || "新模板",
       fields: mappings.length || 18,
-      mappings,
+      mappings: mappings.map((mapping, index) => normalizeEditableMapping(mapping, index)),
+      rawText: uploadResult?.rawText || "",
+      templateStatus: uploadResult?.templateStatus || "PREVIEW_ONLY",
+      templateMessage: uploadResult?.templateMessage || "已生成字段预览。",
+      blankTemplateDownloadUrl: uploadResult?.blankTemplateDownloadUrl || "",
+      previewUrl: URL.createObjectURL(extractFile.value),
+      previewType: getPreviewType(extractFile.value),
+      previewLabel: getPreviewLabel(extractFile.value),
       source: mappings.length ? "已兼容 Dify workflow mappings" : "原型占位结果",
     },
     ...extractedTemplates.value,
   ];
+  selectedExtractId.value = resultId;
+  extractDialogOpen.value = true;
   notify(
     "模板已提取",
     mappings.length ? `已解析 ${mappings.length} 个 Dify 字段映射。` : "已生成原型模板结果，可在后续接入真实解析。",
@@ -946,6 +1245,110 @@ async function extractTemplate() {
 
 function buildFileKey(file) {
   return [file.name, file.size, file.lastModified].join(":");
+}
+
+function selectExtractResult(id) {
+  selectedExtractId.value = id;
+  extractDialogOpen.value = true;
+  extractSaveFeedback.type = "";
+  extractSaveFeedback.message = "";
+}
+
+function closeExtractDialog() {
+  extractDialogOpen.value = false;
+}
+
+function moveMapping(index, direction) {
+  const result = selectedExtractResult.value;
+  if (!result) {
+    return;
+  }
+  const nextIndex = index + direction;
+  if (nextIndex < 0 || nextIndex >= result.mappings.length) {
+    return;
+  }
+  const nextMappings = [...result.mappings];
+  const [current] = nextMappings.splice(index, 1);
+  nextMappings.splice(nextIndex, 0, current);
+  result.mappings = nextMappings;
+}
+
+function formatPlaceholder(value) {
+  const key = value?.trim() || "placeholder_key";
+  return `\${${key}}`;
+}
+
+async function saveTemplateDefinition() {
+  const result = selectedExtractResult.value;
+  if (!result) {
+    notify("请先选择结果", "点击一个提取结果后再保存。", "error");
+    return;
+  }
+  savingTemplate.value = true;
+  extractSaveFeedback.type = "";
+  extractSaveFeedback.message = "";
+  try {
+    const saved = await saveGeneratedTemplate({
+      extractId: result.extractId || result.id,
+      fileName: result.name,
+      saveAsTemplate: true,
+      templateName: result.name,
+      templateType: result.templateStatus === "GENERATED" ? "BILL_DOCX" : "BILL_PREVIEW",
+      rawText: result.rawText,
+      mappings: result.mappings.map((mapping, index) => ({
+        originalText: mapping.originalText,
+        placeholderKey: mapping.placeholderKey,
+        dataType: mapping.dataType,
+        description: mapping.description,
+        sortNo: index + 1,
+      })),
+    });
+    notify(
+      "模板已保存",
+      saved?.message || `已保存模板定义，字段数 ${result.mappings.length}。`,
+      "backend",
+    );
+    extractSaveFeedback.type = "success";
+    extractSaveFeedback.message = saved?.message || `模板已入库，字段数 ${result.mappings.length}。`;
+    await Promise.allSettled([loadManagedTemplates(), loadTemplates()]);
+  } catch (error) {
+    const message = error.message || "请检查后端服务和数据库连接。";
+    extractSaveFeedback.type = "error";
+    extractSaveFeedback.message = `保存失败：${message}`;
+    notify("模板保存失败", message, "error");
+  } finally {
+    savingTemplate.value = false;
+  }
+}
+
+function normalizeEditableMapping(mapping, index) {
+  return {
+    id: `${mapping.placeholderKey || "field"}-${index}-${Date.now()}`,
+    originalText: mapping.originalText ?? mapping.original_text ?? "",
+    placeholderKey: mapping.placeholderKey ?? mapping.placeholder_key ?? "",
+    dataType: mapping.dataType ?? mapping.data_type ?? "string",
+    description: mapping.description ?? "",
+  };
+}
+
+function getPreviewType(file) {
+  if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+    return "pdf";
+  }
+  if (file.type.startsWith("image/")) {
+    return "image";
+  }
+  return "unsupported";
+}
+
+function getPreviewLabel(file) {
+  if (file.name.toLowerCase().endsWith(".docx")) {
+    return "DOCX 模板文件";
+  }
+  if (file.name.toLowerCase().endsWith(".doc")) {
+    return "Word 文件";
+  }
+  return "文件预览待支持";
 }
 
 async function createExportJob() {

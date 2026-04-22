@@ -22,9 +22,9 @@ manifest:
     mybatis:
       enabled: ${USER_MYBATIS_ENABLED:true}
   dify:
-    enabled: ${DIFY_ENABLED:true}
-    base-url: ${DIFY_BASE_URL:http://localhost/v1}
-    api-key: ${DIFY_API_KEY:app-ZqJ8mwmDCjNMdHyCrhMO6gCg}
+    enabled: ${DIFY_ENABLED:false}
+    base-url: ${DIFY_BASE_URL:}
+    api-key: ${DIFY_API_KEY:}
     file-upload-path: ${DIFY_FILE_UPLOAD_PATH:/v1/files/upload}
     workflow-run-path: ${DIFY_WORKFLOW_RUN_PATH:/v1/workflows/run}
     template-file-input-name: ${DIFY_TEMPLATE_FILE_INPUT_NAME:file}
