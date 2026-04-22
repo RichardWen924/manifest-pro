@@ -41,14 +41,40 @@ public class DifyWorkflowClientImpl implements DifyWorkflowClient {
                 resolveEndpoint(properties.getFileUploadPath()),
                 resolveEndpoint(properties.getWorkflowRunPath()),
                 file.getOriginalFilename());
-        String uploadFileId = uploadFile(file);
-        return runWorkflow(uploadFileId);
+        String uploadFileId = uploadFile(file, properties.getUser());
+        return runWorkflow(
+                uploadFileId,
+                properties.getWorkflowRunPath(),
+                properties.getTemplateFileInputName(),
+                properties.getResponseMode(),
+                properties.getUser(),
+                "template extraction"
+        );
     }
 
-    private String uploadFile(MultipartFile file) {
+    @Override
+    public String runTemplateExport(MultipartFile file) {
+        validateConfig();
+        log.info("Dify template export start, baseUrl={}, uploadPath={}, workflowPath={}, fileName={}",
+                normalizeBaseUrl(properties.getBaseUrl()),
+                resolveEndpoint(properties.getFileUploadPath()),
+                resolveEndpoint(properties.getExportWorkflowRunPath()),
+                file.getOriginalFilename());
+        String uploadFileId = uploadFile(file, properties.getExportUser());
+        return runWorkflow(
+                uploadFileId,
+                properties.getExportWorkflowRunPath(),
+                properties.getExportFileInputName(),
+                properties.getExportResponseMode(),
+                properties.getExportUser(),
+                "template export"
+        );
+    }
+
+    private String uploadFile(MultipartFile file, String user) {
         try {
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-            body.add("user", properties.getUser());
+            body.add("user", user);
             body.add("file", new MultipartInputFile(file.getBytes(), file.getOriginalFilename()));
 
             String response = restClient()
@@ -70,31 +96,38 @@ public class DifyWorkflowClientImpl implements DifyWorkflowClient {
         }
     }
 
-    private String runWorkflow(String uploadFileId) {
+    private String runWorkflow(
+            String uploadFileId,
+            String workflowRunPath,
+            String fileInputName,
+            String responseMode,
+            String user,
+            String action
+    ) {
         Map<String, Object> requestBody = Map.of(
                 "inputs", Map.of(
-                        properties.getTemplateFileInputName(), Map.of(
+                        fileInputName, Map.of(
                                 "type", "document",
                                 "transfer_method", "local_file",
                                 "upload_file_id", uploadFileId
                         )
                 ),
-                "response_mode", properties.getResponseMode(),
-                "user", properties.getUser()
+                "response_mode", responseMode,
+                "user", user
         );
 
         try {
             String response = restClient()
                     .post()
-                    .uri(resolveEndpoint(properties.getWorkflowRunPath()))
+                    .uri(resolveEndpoint(workflowRunPath))
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(requestBody)
                     .retrieve()
                     .body(String.class);
-            log.info("Dify template extraction workflow completed, uploadFileId={}", uploadFileId);
+            log.info("Dify {} workflow completed, uploadFileId={}", action, uploadFileId);
             return response;
         } catch (RestClientResponseException ex) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), buildDifyError("工作流执行", ex));
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), buildDifyError("工作流执行", ex, workflowRunPath));
         }
     }
 
@@ -126,10 +159,14 @@ public class DifyWorkflowClientImpl implements DifyWorkflowClient {
     }
 
     private String buildDifyError(String stage, RestClientResponseException ex) {
+        return buildDifyError(stage, ex, properties.getWorkflowRunPath());
+    }
+
+    private String buildDifyError(String stage, RestClientResponseException ex, String workflowRunPath) {
         String responseBody = sanitizeResponseBody(ex.getResponseBodyAsString());
         if (ex.getStatusCode().value() == 404) {
             return "Dify " + stage + "接口 404，请检查 DIFY_BASE_URL 是否为 API 地址，以及路径配置是否正确；当前路径 fileUploadPath="
-                    + properties.getFileUploadPath() + ", workflowRunPath=" + properties.getWorkflowRunPath();
+                    + properties.getFileUploadPath() + ", workflowRunPath=" + workflowRunPath;
         }
         if (StringUtils.hasText(responseBody)) {
             return "Dify " + stage + "失败：" + ex.getStatusCode().value() + " " + responseBody;

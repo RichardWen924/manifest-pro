@@ -6,8 +6,10 @@ import com.manifestreader.user.model.dto.TemplateExtractSaveRequest;
 import com.manifestreader.user.model.dto.TemplatePageQuery;
 import com.manifestreader.user.model.dto.TemplateStatusUpdateRequest;
 import com.manifestreader.user.model.vo.BlankTemplateFile;
+import com.manifestreader.user.model.vo.ExportedTemplateFile;
 import com.manifestreader.user.model.vo.TemplateExtractResultVO;
 import com.manifestreader.user.model.vo.TemplateExtractSaveResultVO;
+import com.manifestreader.user.model.vo.TemplateExportResultVO;
 import com.manifestreader.user.model.vo.TemplateManageVO;
 import com.manifestreader.user.model.vo.TemplateOptionVO;
 import com.manifestreader.user.service.UserTemplateService;
@@ -27,6 +29,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
@@ -104,6 +107,26 @@ public class UserTemplateController {
         BlankTemplateFile file = templateService.getBlankTemplate(extractId);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + file.fileName() + "\"")
+                .body(new FileSystemResource(file.path()));
+    }
+
+    @Operation(summary = "按模板导出文件")
+    @PostMapping(value = "/export", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public R<TemplateExportResultVO> exportWithTemplate(
+            @RequestParam("templateId") Long templateId,
+            @RequestParam(value = "outputFormat", defaultValue = "DOCX") String outputFormat,
+            @RequestPart("file") MultipartFile file
+    ) {
+        return R.ok(templateService.exportWithTemplate(templateId, outputFormat, file));
+    }
+
+    @Operation(summary = "下载按模板导出的文件")
+    @GetMapping("/export/{exportId}/download")
+    public ResponseEntity<Resource> downloadExportedTemplate(@PathVariable String exportId) {
+        ExportedTemplateFile file = templateService.getExportedTemplate(exportId);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(file.contentType()))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + file.fileName() + "\"")
                 .body(new FileSystemResource(file.path()));
     }

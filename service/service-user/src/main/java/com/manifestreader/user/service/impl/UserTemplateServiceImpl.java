@@ -12,6 +12,7 @@ import com.manifestreader.model.entity.FileAssetEntity;
 import com.manifestreader.model.entity.TemplateEntity;
 import com.manifestreader.model.entity.TemplateFieldMappingEntity;
 import com.manifestreader.model.entity.TemplateVersionEntity;
+import com.manifestreader.user.dify.DifyTemplateExportParser;
 import com.manifestreader.user.dify.DifyTemplateMappingParser;
 import com.manifestreader.user.dify.DifyWorkflowClient;
 import com.manifestreader.user.mapper.UserFileAssetMapper;
@@ -23,12 +24,16 @@ import com.manifestreader.user.model.dto.TemplateFieldMappingSaveRequest;
 import com.manifestreader.user.model.dto.TemplatePageQuery;
 import com.manifestreader.user.model.dto.TemplateStatusUpdateRequest;
 import com.manifestreader.user.model.vo.BlankTemplateFile;
+import com.manifestreader.user.model.vo.ExportedTemplateFile;
 import com.manifestreader.user.model.vo.TemplateExtractResultVO;
 import com.manifestreader.user.model.vo.TemplateExtractSaveResultVO;
+import com.manifestreader.user.model.vo.TemplateExportResultVO;
 import com.manifestreader.user.model.vo.TemplateFieldMappingVO;
 import com.manifestreader.user.model.vo.TemplateManageVO;
 import com.manifestreader.user.model.vo.TemplateOptionVO;
 import com.manifestreader.user.service.UserTemplateService;
+import com.manifestreader.user.storage.ObjectStorageService;
+import com.manifestreader.user.storage.StoredObject;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -39,6 +44,8 @@ import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import org.slf4j.Logger;
@@ -60,30 +67,37 @@ public class UserTemplateServiceImpl implements UserTemplateService {
 
     private final DifyWorkflowClient difyWorkflowClient;
     private final DifyTemplateMappingParser mappingParser;
+    private final DifyTemplateExportParser exportParser;
     private final ObjectMapper objectMapper;
     private final UserTemplateMapper templateMapper;
     private final UserTemplateVersionMapper templateVersionMapper;
     private final UserTemplateFieldMappingMapper fieldMappingMapper;
     private final UserFileAssetMapper fileAssetMapper;
+    private final ObjectStorageService objectStorageService;
     private final ConcurrentMap<String, TemplateExtractResultVO> extractResultCache = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, BlankTemplateFile> blankTemplateCache = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, ExportedTemplateFile> exportedTemplateCache = new ConcurrentHashMap<>();
 
     public UserTemplateServiceImpl(
             DifyWorkflowClient difyWorkflowClient,
             DifyTemplateMappingParser mappingParser,
+            DifyTemplateExportParser exportParser,
             ObjectMapper objectMapper,
             UserTemplateMapper templateMapper,
             UserTemplateVersionMapper templateVersionMapper,
             UserTemplateFieldMappingMapper fieldMappingMapper,
-            UserFileAssetMapper fileAssetMapper
+            UserFileAssetMapper fileAssetMapper,
+            ObjectStorageService objectStorageService
     ) {
         this.difyWorkflowClient = difyWorkflowClient;
         this.mappingParser = mappingParser;
+        this.exportParser = exportParser;
         this.objectMapper = objectMapper;
         this.templateMapper = templateMapper;
         this.templateVersionMapper = templateVersionMapper;
         this.fieldMappingMapper = fieldMappingMapper;
         this.fileAssetMapper = fileAssetMapper;
+        this.objectStorageService = objectStorageService;
     }
 
     @Override
@@ -239,8 +253,243 @@ public class UserTemplateServiceImpl implements UserTemplateService {
         );
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public TemplateExportResultVO exportWithTemplate(Long templateId, String outputFormat, MultipartFile file) {
+        if (templateId == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "请选择模板");
+        }
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "请上传需要提取数据的目标文件");
+        }
+
+        ExportContext context = resolveExportContext(templateId);
+        String normalizedFormat = normalizeOutputFormat(outputFormat);
+        if ("PDF".equals(normalizedFormat) && !isSofficeAvailable()) {
+            return new TemplateExportResultVO(
+                    UUID.randomUUID().toString(),
+                    context.template().getId(),
+                    context.template().getTemplateName(),
+                    null,
+                    normalizedFormat,
+                    null,
+                    Map.of(),
+                    List.of(),
+                    "",
+                    "FAILED",
+                    "当前环境未安装 LibreOffice/soffice，暂无法将 DOCX 模板转换为 PDF；请先选择 DOCX 导出或安装转换工具。"
+            );
+        }
+
+        log.info("Template export calling Dify, templateId={}, fileName={}, outputFormat={}",
+                templateId, file.getOriginalFilename(), normalizedFormat);
+        String difyResponse = difyWorkflowClient.runTemplateExport(file);
+        DifyTemplateExportParser.ParsedExportFields parsed = exportParser.parse(difyResponse);
+        List<String> missing = resolveMissingPlaceholders(context.version().getId(), parsed.fields());
+        RenderedTemplate rendered = renderTemplate(context, parsed.fields(), normalizedFormat);
+        createExportFileAsset(rendered, file, context.template(), parsed.rawText());
+        exportedTemplateCache.put(rendered.exportId(), new ExportedTemplateFile(rendered.fileName(), rendered.contentType(), rendered.path()));
+
+        return new TemplateExportResultVO(
+                rendered.exportId(),
+                context.template().getId(),
+                context.template().getTemplateName(),
+                rendered.fileName(),
+                normalizedFormat,
+                "/user/templates/export/" + rendered.exportId() + "/download",
+                parsed.fields(),
+                missing,
+                parsed.rawText(),
+                "GENERATED",
+                missing.isEmpty() ? "模板导出完成" : "模板导出完成，但存在未返回字段，请检查缺失占位符"
+        );
+    }
+
+    @Override
+    public ExportedTemplateFile getExportedTemplate(String exportId) {
+        ExportedTemplateFile file = exportedTemplateCache.get(exportId);
+        if (file == null || !Files.exists(file.path())) {
+            throw new BusinessException(ErrorCode.NOT_FOUND.getCode(), "导出文件不存在或已过期");
+        }
+        return file;
+    }
+
+    private ExportContext resolveExportContext(Long templateId) {
+        TemplateEntity template = templateMapper.selectOne(new LambdaQueryWrapper<TemplateEntity>()
+                .eq(TemplateEntity::getId, templateId)
+                .eq(TemplateEntity::getDeleted, 0)
+                .eq(TemplateEntity::getStatus, 1)
+                .and(wrapper -> wrapper.eq(TemplateEntity::getCompanyId, currentCompanyId()).or().isNull(TemplateEntity::getCompanyId)));
+        if (template == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND.getCode(), "模板不存在或未启用");
+        }
+        TemplateVersionEntity version = findCurrentVersion(template);
+        if (version == null || version.getFileAssetId() == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "模板未绑定可导出的文件版本");
+        }
+        FileAssetEntity asset = fileAssetMapper.selectById(version.getFileAssetId());
+        if (asset == null || !StringUtils.hasText(asset.getObjectKey())) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "模板文件资产不存在");
+        }
+        Path templatePath = resolveAssetToLocalPath(asset);
+        if (!Files.exists(templatePath) || !templatePath.getFileName().toString().toLowerCase().endsWith(".docx")) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "当前模板没有可读取的 DOCX 文件，请先保存 DOCX 空白模板");
+        }
+        return new ExportContext(template, version, asset, templatePath);
+    }
+
+    private Path resolveAssetToLocalPath(FileAssetEntity asset) {
+        if ("MINIO".equalsIgnoreCase(asset.getStorageType())) {
+            return objectStorageService.downloadToTemp(asset.getBucketName(), asset.getObjectKey(), asset.getFileName());
+        }
+        return Path.of(asset.getObjectKey());
+    }
+
+    private List<String> resolveMissingPlaceholders(Long versionId, Map<String, Object> extractedFields) {
+        Set<String> keys = extractedFields.keySet();
+        return fieldMappingMapper.selectList(new LambdaQueryWrapper<TemplateFieldMappingEntity>()
+                        .eq(TemplateFieldMappingEntity::getTemplateVersionId, versionId)
+                        .orderByAsc(TemplateFieldMappingEntity::getSortNo))
+                .stream()
+                .map(TemplateFieldMappingEntity::getFieldKey)
+                .filter(StringUtils::hasText)
+                .filter(key -> !keys.contains(key) || extractedFields.get(key) == null)
+                .toList();
+    }
+
+    private RenderedTemplate renderTemplate(ExportContext context, Map<String, Object> extractedFields, String outputFormat) {
+        String exportId = UUID.randomUUID().toString();
+        try {
+            Path workDir = Files.createTempDirectory("manifest-export-" + exportId + "-");
+            Path dataPath = workDir.resolve("fields.json");
+            Path docxPath = workDir.resolve("rendered.docx");
+            objectMapper.writeValue(dataPath.toFile(), extractedFields);
+
+            Process process = new ProcessBuilder(
+                    "python3",
+                    resolveRenderScriptPath(),
+                    context.templatePath().toString(),
+                    dataPath.toString(),
+                    docxPath.toString()
+            ).redirectErrorStream(true).start();
+            String processOutput = new String(process.getInputStream().readAllBytes());
+            int exitCode = process.waitFor();
+            if (exitCode != 0 || !Files.exists(docxPath)) {
+                log.warn("DOCX template render failed, exitCode={}, output={}", exitCode, processOutput);
+                throw new BusinessException(ErrorCode.INTERNAL_ERROR.getCode(), "DOCX 模板填充失败，请检查 python-docx 环境和模板占位符");
+            }
+
+            if ("PDF".equals(outputFormat)) {
+                Path pdfPath = convertDocxToPdf(docxPath, workDir);
+                return new RenderedTemplate(
+                        exportId,
+                        buildExportFileName(context.template().getTemplateName(), "pdf"),
+                        "application/pdf",
+                        pdfPath
+                );
+            }
+
+            return new RenderedTemplate(
+                    exportId,
+                    buildExportFileName(context.template().getTemplateName(), "docx"),
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    docxPath
+            );
+        } catch (IOException ex) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR.getCode(), "模板导出文件处理失败");
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR.getCode(), "模板导出被中断");
+        }
+    }
+
+    private Path convertDocxToPdf(Path docxPath, Path workDir) throws IOException, InterruptedException {
+        String soffice = resolveSofficeCommand();
+        if (!StringUtils.hasText(soffice)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "当前环境未安装 LibreOffice/soffice，暂无法生成 PDF");
+        }
+        Process process = new ProcessBuilder(
+                soffice,
+                "--headless",
+                "--convert-to",
+                "pdf",
+                "--outdir",
+                workDir.toString(),
+                docxPath.toString()
+        ).redirectErrorStream(true).start();
+        String processOutput = new String(process.getInputStream().readAllBytes());
+        int exitCode = process.waitFor();
+        Path pdfPath = workDir.resolve(stripExtension(docxPath.getFileName().toString()) + ".pdf");
+        if (exitCode != 0 || !Files.exists(pdfPath)) {
+            log.warn("DOCX to PDF conversion failed, exitCode={}, output={}", exitCode, processOutput);
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR.getCode(), "PDF 转换失败，请检查 LibreOffice/soffice 配置");
+        }
+        return pdfPath;
+    }
+
+    private void createExportFileAsset(RenderedTemplate rendered, MultipartFile sourceFile, TemplateEntity template, String rawText) {
+        StoredObject stored = objectStorageService.put(
+                "exports/" + currentCompanyId() + "/" + rendered.exportId() + "/" + rendered.fileName(),
+                rendered.path(),
+                rendered.contentType()
+        );
+        FileAssetEntity entity = new FileAssetEntity();
+        entity.setCompanyId(currentCompanyId());
+        entity.setBizType("TEMPLATE_EXPORT");
+        entity.setFileName(limitText(rendered.fileName(), 255));
+        entity.setOriginalName(limitText(safeFileName(sourceFile.getOriginalFilename()), 255));
+        entity.setContentType(rendered.contentType());
+        entity.setFileSize(stored.size());
+        entity.setStorageType(stored.storageType());
+        entity.setBucketName(stored.bucketName());
+        entity.setObjectKey(limitText(stored.objectKey(), 255));
+        entity.setFileHash(hashText(template.getId() + ":" + rendered.exportId() + ":" + rawText));
+        entity.setStatus(1);
+        entity.setCreatedBy(currentUserId());
+        entity.setCreatedAt(LocalDateTime.now());
+        entity.setUpdatedAt(LocalDateTime.now());
+        entity.setDeleted(0);
+        fileAssetMapper.insert(entity);
+    }
+
+    private String normalizeOutputFormat(String outputFormat) {
+        String value = StringUtils.hasText(outputFormat) ? outputFormat.trim().toUpperCase() : "DOCX";
+        if (!List.of("DOCX", "PDF").contains(value)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "导出格式仅支持 DOCX 或 PDF");
+        }
+        return value;
+    }
+
+    private String buildExportFileName(String templateName, String extension) {
+        return limitText(stripExtension(safeText(templateName, "template-export")) + "-export-" + System.currentTimeMillis() + "." + extension, 255);
+    }
+
+    private Long fileSize(Path path) {
+        try {
+            return Files.size(path);
+        } catch (IOException ex) {
+            return 0L;
+        }
+    }
+
+    private String hashText(String text) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(text.getBytes()));
+        } catch (NoSuchAlgorithmException ex) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR.getCode(), "文件指纹算法不可用");
+        }
+    }
+
     private FileAssetEntity createLocalFileAsset(TemplateExtractSaveRequest request) {
         BlankTemplateFile blankTemplateFile = blankTemplateCache.get(request.extractId());
+        StoredObject storedObject = blankTemplateFile == null
+                ? null
+                : objectStorageService.put(
+                        "templates/" + currentCompanyId() + "/" + safeText(request.extractId(), "manual-" + System.currentTimeMillis()) + "/" + blankTemplateFile.fileName(),
+                        blankTemplateFile.path(),
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                );
         FileAssetEntity entity = new FileAssetEntity();
         entity.setCompanyId(currentCompanyId());
         entity.setBizType("TEMPLATE");
@@ -249,11 +498,12 @@ public class UserTemplateServiceImpl implements UserTemplateService {
         entity.setContentType(blankTemplateFile == null
                 ? "application/json"
                 : "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-        entity.setFileSize(resolveTemplateFileSize(blankTemplateFile, request));
-        entity.setStorageType("LOCAL");
-        entity.setObjectKey(blankTemplateFile == null
+        entity.setFileSize(storedObject == null ? resolveTemplateFileSize(blankTemplateFile, request) : storedObject.size());
+        entity.setStorageType(storedObject == null ? "LOCAL" : storedObject.storageType());
+        entity.setBucketName(storedObject == null ? null : storedObject.bucketName());
+        entity.setObjectKey(storedObject == null
                 ? limitText("template-extract/" + safeText(request.extractId(), "manual-" + System.currentTimeMillis()) + ".json", 255)
-                : limitText(blankTemplateFile.path().toString(), 255));
+                : limitText(storedObject.objectKey(), 255));
         entity.setFileHash(request.extractId());
         entity.setStatus(1);
         entity.setCreatedBy(currentUserId());
@@ -372,6 +622,42 @@ public class UserTemplateServiceImpl implements UserTemplateService {
             }
         }
         return new ClassPathResource("scripts/generate_blank_docx.py").getFile().getAbsolutePath();
+    }
+
+    private String resolveRenderScriptPath() throws IOException {
+        for (Path candidate : List.of(
+                Path.of("service/service-user/scripts/render_template_docx.py"),
+                Path.of("scripts/render_template_docx.py")
+        )) {
+            if (Files.exists(candidate)) {
+                return candidate.toAbsolutePath().toString();
+            }
+        }
+        return new ClassPathResource("scripts/render_template_docx.py").getFile().getAbsolutePath();
+    }
+
+    private boolean isSofficeAvailable() {
+        return StringUtils.hasText(resolveSofficeCommand());
+    }
+
+    private String resolveSofficeCommand() {
+        for (String command : List.of("soffice", "libreoffice")) {
+            try {
+                Process process = new ProcessBuilder(command, "--version")
+                        .redirectErrorStream(true)
+                        .start();
+                int exitCode = process.waitFor();
+                if (exitCode == 0) {
+                    return command;
+                }
+            } catch (IOException ex) {
+                log.debug("{} command is not available", command);
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                return "";
+            }
+        }
+        return "";
     }
 
     private String hashFile(MultipartFile file) {
@@ -526,6 +812,22 @@ public class UserTemplateServiceImpl implements UserTemplateService {
             String status,
             String message,
             String downloadUrl
+    ) {
+    }
+
+    private record ExportContext(
+            TemplateEntity template,
+            TemplateVersionEntity version,
+            FileAssetEntity fileAsset,
+            Path templatePath
+    ) {
+    }
+
+    private record RenderedTemplate(
+            String exportId,
+            String fileName,
+            String contentType,
+            Path path
     ) {
     }
 }

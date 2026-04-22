@@ -5,8 +5,10 @@ import com.manifestreader.user.model.dto.TemplateExtractSaveRequest;
 import com.manifestreader.user.model.dto.TemplatePageQuery;
 import com.manifestreader.user.model.dto.TemplateStatusUpdateRequest;
 import com.manifestreader.user.model.vo.BlankTemplateFile;
+import com.manifestreader.user.model.vo.ExportedTemplateFile;
 import com.manifestreader.user.model.vo.TemplateExtractResultVO;
 import com.manifestreader.user.model.vo.TemplateExtractSaveResultVO;
+import com.manifestreader.user.model.vo.TemplateExportResultVO;
 import com.manifestreader.user.model.vo.TemplateManageVO;
 import com.manifestreader.user.model.vo.TemplateOptionVO;
 import java.util.List;
@@ -33,4 +35,8 @@ public interface UserTemplateService {
     BlankTemplateFile getBlankTemplate(String extractId);
 
     TemplateExtractSaveResultVO saveGeneratedTemplate(TemplateExtractSaveRequest request);
+
+    TemplateExportResultVO exportWithTemplate(Long templateId, String outputFormat, MultipartFile file);
+
+    ExportedTemplateFile getExportedTemplate(String exportId);
 }

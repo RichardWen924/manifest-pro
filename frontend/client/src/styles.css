@@ -59,35 +59,63 @@ p {
 
 .toast-stack {
   position: fixed;
-  top: 18px;
-  right: 18px;
+  top: 20px;
+  left: 50%;
   z-index: 50;
   display: grid;
-  width: min(360px, calc(100vw - 36px));
+  width: min(520px, calc(100vw - 40px));
   gap: 10px;
+  transform: translateX(-50%);
+  pointer-events: none;
 }
 
 .toast {
-  display: grid;
-  gap: 4px;
-  border-radius: 12px;
-  padding: 14px 16px;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: var(--shadow);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 1px solid rgba(29, 29, 31, 0.08);
+  border-radius: 999px;
+  padding: 11px 18px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.1);
   backdrop-filter: saturate(180%) blur(20px);
+  animation: toastDrop 0.24s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  pointer-events: auto;
+}
+
+.toast::before {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--blue);
+  content: "";
+}
+
+.toast strong {
+  font-size: 14px;
+  line-height: 1.2;
 }
 
 .toast span {
   color: var(--muted);
-  font-size: 14px;
+  font-size: 13px;
+  line-height: 1.25;
 }
 
 .toast.error {
-  border-left: 4px solid #ff3b30;
+  border-color: rgba(255, 59, 48, 0.2);
 }
 
-.toast.backend {
-  border-left: 4px solid var(--blue);
+.toast.error::before {
+  background: #ff3b30;
+}
+
+.toast.backend::before {
+  background: var(--blue);
 }
 
 .login-stage {
@@ -1015,6 +1043,17 @@ button:disabled {
   }
 }
 
+@keyframes toastDrop {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -1639,9 +1678,89 @@ button:disabled {
   font-weight: 900;
 }
 
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.pill::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--blue);
+  content: "";
+}
+
 .pill.muted {
-  background: rgba(0, 0, 0, 0.08);
-  color: var(--muted);
+  background: rgba(255, 59, 48, 0.1);
+  color: #b42318;
+}
+
+.pill.muted::before {
+  background: #ff3b30;
+}
+
+.template-status-stack {
+  display: grid;
+  justify-items: end;
+  gap: 10px;
+}
+
+.switch-control {
+  position: relative;
+  display: inline-flex;
+  width: 76px;
+  height: 40px;
+  align-items: center;
+  justify-content: flex-end;
+  border: 0;
+  border-radius: 999px;
+  padding: 4px 10px 4px 4px;
+  background: rgba(255, 59, 48, 0.12);
+  color: #b42318;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  transition: background 0.24s ease, color 0.24s ease, box-shadow 0.24s ease, transform 0.2s ease;
+}
+
+.switch-control:hover {
+  box-shadow: 0 10px 22px rgba(0, 113, 227, 0.16);
+  transform: translateY(-1px);
+}
+
+.switch-control.on {
+  justify-content: flex-start;
+  padding: 4px 4px 4px 12px;
+  background: var(--blue);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.switch-control:disabled {
+  opacity: 0.58;
+}
+
+.switch-thumb {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #ff3b30;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  transition: transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.switch-control.on .switch-thumb {
+  background: #fff;
+  transform: translateX(36px);
+}
+
+.switch-text {
+  position: relative;
+  z-index: 1;
 }
 
 .template-storage-grid {
@@ -1675,11 +1794,45 @@ button:disabled {
 }
 
 .job-card {
+  display: grid;
   background: var(--soft);
   color: var(--ink);
 }
 
 .job-card small {
+  color: var(--link-blue);
+}
+
+.job-main,
+.job-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.export-field-preview {
+  width: 100%;
+  color: var(--muted);
+}
+
+.export-field-preview summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.export-field-preview p {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.32fr) minmax(0, 1fr);
+  gap: 10px;
+  margin: 8px 0 0;
+  border-radius: 10px;
+  padding: 10px;
+  background: #fff;
+}
+
+.export-field-preview b {
   color: var(--link-blue);
 }
 

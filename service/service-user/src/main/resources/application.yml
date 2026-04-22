@@ -21,6 +21,12 @@ manifest:
   user:
     mybatis:
       enabled: ${USER_MYBATIS_ENABLED:true}
+  storage:
+    type: ${STORAGE_TYPE:minio}
+    endpoint: ${MINIO_ENDPOINT:http://127.0.0.1:9000}
+    access-key: ${MINIO_ACCESS_KEY:minioadmin}
+    secret-key: ${MINIO_SECRET_KEY:minioadmin}
+    bucket: ${MINIO_BUCKET:manifest-reader}
   dify:
     enabled: ${DIFY_ENABLED:false}
     base-url: ${DIFY_BASE_URL:}
@@ -30,3 +36,7 @@ manifest:
     template-file-input-name: ${DIFY_TEMPLATE_FILE_INPUT_NAME:file}
     response-mode: ${DIFY_RESPONSE_MODE:blocking}
     user: ${DIFY_USER:manifest-reader}
+    export-workflow-run-path: ${DIFY_EXPORT_WORKFLOW_RUN_PATH:/v1/workflows/run}
+    export-file-input-name: ${DIFY_EXPORT_FILE_INPUT_NAME:file}
+    export-response-mode: ${DIFY_EXPORT_RESPONSE_MODE:blocking}
+    export-user: ${DIFY_EXPORT_USER:manifest-reader-export}

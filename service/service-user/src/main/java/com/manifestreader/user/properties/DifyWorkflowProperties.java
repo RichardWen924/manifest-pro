@@ -12,6 +12,10 @@ public class DifyWorkflowProperties {
     private String templateFileInputName = "file";
     private String responseMode = "blocking";
     private String user = "manifest-reader";
+    private String exportWorkflowRunPath = "/v1/workflows/run";
+    private String exportFileInputName = "file";
+    private String exportResponseMode = "blocking";
+    private String exportUser = "manifest-reader-export";
     private boolean enabled = false;
 
     public String getBaseUrl() {
@@ -68,6 +72,38 @@ public class DifyWorkflowProperties {
 
     public void setUser(String user) {
         this.user = user;
+    }
+
+    public String getExportWorkflowRunPath() {
+        return exportWorkflowRunPath;
+    }
+
+    public void setExportWorkflowRunPath(String exportWorkflowRunPath) {
+        this.exportWorkflowRunPath = exportWorkflowRunPath;
+    }
+
+    public String getExportFileInputName() {
+        return exportFileInputName;
+    }
+
+    public void setExportFileInputName(String exportFileInputName) {
+        this.exportFileInputName = exportFileInputName;
+    }
+
+    public String getExportResponseMode() {
+        return exportResponseMode;
+    }
+
+    public void setExportResponseMode(String exportResponseMode) {
+        this.exportResponseMode = exportResponseMode;
+    }
+
+    public String getExportUser() {
+        return exportUser;
+    }
+
+    public void setExportUser(String exportUser) {
+        this.exportUser = exportUser;
     }
 
     public boolean isEnabled() {

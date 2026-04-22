@@ -107,8 +107,23 @@ export async function deleteBill(id) {
   });
 }
 
+export async function saveExtractedBillData(payload) {
+  return request(USER_BASE, "/bills/from-extracted-fields", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function fetchTemplateOptions() {
   return request(USER_BASE, "/templates/usable");
+}
+
+export async function fetchExportableTemplates() {
+  const search = new URLSearchParams();
+  search.set("pageNo", 1);
+  search.set("pageSize", 100);
+  search.set("status", 1);
+  return request(USER_BASE, `/templates/manage/page?${search.toString()}`);
 }
 
 export async function fetchTemplateManagePage(params = {}) {
@@ -150,6 +165,17 @@ export async function saveGeneratedTemplate(payload) {
   return request(USER_BASE, "/templates/extract/save", {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+export async function exportTemplateFile({ templateId, outputFormat = "DOCX", file }) {
+  const formData = new FormData();
+  formData.append("templateId", templateId);
+  formData.append("outputFormat", outputFormat);
+  formData.append("file", file);
+  return request(USER_BASE, "/templates/export", {
+    method: "POST",
+    body: formData,
   });
 }
 

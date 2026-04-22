@@ -19,10 +19,6 @@
       <section class="login-copy">
         <p class="eyebrow">Client Workspace</p>
         <h1>让提单文件进入一个安静、清晰的工作台。</h1>
-        <p>
-          登录后查看已存提单数据，上传文件提取模板，并按模板导出目标文件。
-          当前是客户端原型，交互优先，后续接入 user-service。
-        </p>
         <div class="signal-row" aria-label="Workspace highlights">
           <span>BL Data</span>
           <span>Template Extract</span>
@@ -35,7 +31,6 @@
           <div>
             <p class="card-kicker">鉴权入口</p>
             <h2>登录客户端</h2>
-            <p>输入用户名或航运公司四字母编号，再使用密码进入用户工作台。</p>
           </div>
           <button class="ghost-button" type="button" @click="switchAuthMode('register')">注册账号</button>
         </div>
@@ -124,7 +119,7 @@
         <div>
           <p class="eyebrow">{{ currentMeta.eyebrow }}</p>
           <h1>{{ currentMeta.title }}</h1>
-          <p>{{ currentMeta.description }}</p>
+          <p v-if="currentMeta.description">{{ currentMeta.description }}</p>
         </div>
         <div class="hero-actions">
           <button class="secondary-button" type="button" @click="sidebarCollapsed = !sidebarCollapsed">
@@ -138,21 +133,17 @@
         <article class="metric-card dark">
           <span>已存提单</span>
           <strong>{{ savedBills.length }}</strong>
-          <p>总览看板预留，后续展示上传趋势、解析成功率和导出记录。</p>
         </article>
         <article class="metric-card">
           <span>模板提取</span>
           <strong>{{ extractedTemplates.length }}</strong>
-          <p>从历史提单或上传文件中提取结构化模板。</p>
         </article>
         <article class="metric-card">
           <span>待导出</span>
           <strong>{{ exportJobs.length }}</strong>
-          <p>按照模板生成目标文件，保留人工确认节点。</p>
         </article>
         <article class="panel-card wide">
-          <h2>总览预留</h2>
-          <p>这里后续可接入用户提单统计、近期文件、模板推荐和导出任务队列。</p>
+          <h2>总览</h2>
           <div class="placeholder-strip">
             <span></span>
             <span></span>
@@ -208,7 +199,6 @@
           <div class="editor-title">
             <div>
               <strong>{{ billEditor.mode === "create" ? "新增提单" : "编辑提单" }}</strong>
-              <span>先维护核心字段，复杂解析字段后续接入模板和文件解析。</span>
             </div>
             <button class="ghost-button" type="button" @click="closeBillEditor">取消</button>
           </div>
@@ -320,7 +310,7 @@
               </div>
               <div class="field-hint">
                 <span></span>
-                <p>后续 30+ 字段会继续放入这个展开区域，保持列表层只展示关键摘要。</p>
+                <p>展开区域展示完整字段。</p>
               </div>
             </div>
           </article>
@@ -345,7 +335,7 @@
             <input type="file" accept=".pdf,.doc,.docx,.xlsx,.xls,.png,.jpg,.jpeg" @change="handleExtractFile" />
             <span class="upload-symbol">↑</span>
             <strong>{{ extractFile ? extractFile.name : "上传提单样本文件" }}</strong>
-            <p>支持 PDF、Word、Excel、图片。当前仅生成交互原型记录。</p>
+            <p>支持 PDF、Word、Excel、图片。</p>
           </label>
           <button
             class="primary-button full"
@@ -418,7 +408,21 @@
                 <h3>{{ template.templateName }}</h3>
                 <p>{{ template.templateCode }}</p>
               </div>
-              <span class="pill" :class="{ muted: template.status !== 1 }">{{ template.status === 1 ? "启用" : "停用" }}</span>
+              <div class="template-status-stack">
+                <span class="pill" :class="{ muted: Number(template.status) !== 1 }">{{ Number(template.status) === 1 ? "启用" : "停用" }}</span>
+                <button
+                  class="switch-control"
+                  type="button"
+                  role="switch"
+                  :aria-checked="Number(template.status) === 1"
+                  :class="{ on: Number(template.status) === 1 }"
+                  :disabled="isTemplateStatusUpdating(template.id)"
+                  @click="toggleTemplateStatus(template)"
+                >
+                  <span class="switch-thumb"></span>
+                  <span class="switch-text">{{ Number(template.status) === 1 ? "ON" : "OFF" }}</span>
+                </button>
+              </div>
             </div>
             <div class="template-storage-grid">
               <div>
@@ -439,9 +443,6 @@
               </div>
             </div>
             <div class="template-manage-actions">
-              <button class="ghost-button" type="button" @click="toggleTemplateStatus(template)">
-                {{ template.status === 1 ? "停用" : "启用" }}
-              </button>
               <button class="danger-button" type="button" @click="removeManagedTemplate(template)">删除</button>
             </div>
           </article>
@@ -604,10 +605,18 @@
           </div>
           <label>
             选择模板
-            <select v-model="exportForm.templateId">
+            <select v-model="exportForm.templateId" :disabled="!templateOptions.length">
+              <option v-if="!templateOptions.length" value="">暂无可导出的 DOCX 模板</option>
               <option v-for="template in templateOptions" :key="template.id" :value="template.id">
                 {{ template.name }}
               </option>
+            </select>
+          </label>
+          <label>
+            导出格式
+            <select v-model="exportForm.outputFormat">
+              <option value="DOCX">DOCX 标准文档</option>
+              <option value="PDF">PDF 文档</option>
             </select>
           </label>
           <label class="drop-zone slim" :class="{ active: exportFile }">
@@ -616,16 +625,41 @@
             <strong>{{ exportFile ? exportFile.name : "上传目标文件" }}</strong>
             <p>用于承载模板导出的目标文档。</p>
           </label>
-          <button class="primary-button full" type="button" @click="createExportJob">创建导出任务</button>
+          <button class="primary-button full" type="button" :disabled="exportingTemplate" @click="createExportJob">
+            {{ exportingTemplate ? "正在抽取并生成" : "创建导出任务" }}
+          </button>
         </article>
 
         <article class="panel-card">
           <h2>导出队列</h2>
           <div class="job-list">
             <div v-for="job in exportJobs" :key="job.id" class="job-card">
-              <span>{{ job.template }}</span>
-              <strong>{{ job.file }}</strong>
-              <small>{{ job.status }}</small>
+              <div class="job-main">
+                <span>{{ job.template }}</span>
+                <strong>{{ job.file }}</strong>
+                <small>{{ job.status }}</small>
+              </div>
+              <div v-if="job.downloadUrl" class="job-actions">
+                <a class="download-template-link" :href="job.downloadUrl" download>下载导出文件</a>
+                <button
+                  class="secondary-button"
+                  type="button"
+                  :disabled="job.savingBusiness || job.businessSaved"
+                  @click="saveExportJobToBusiness(job)"
+                >
+                  {{ job.businessSaved ? "已保存业务数据" : job.savingBusiness ? "正在保存" : "保存至业务数据" }}
+                </button>
+              </div>
+              <details v-if="job.fields?.length" class="export-field-preview">
+                <summary>查看 Dify 提取字段 {{ job.fields.length }}</summary>
+                <p v-for="field in job.fields" :key="field.key">
+                  <b>{{ field.key }}</b>
+                  <span>{{ field.value }}</span>
+                </p>
+              </details>
+              <div v-if="job.missing?.length" class="form-error">
+                缺失字段：{{ job.missing.join("、") }}
+              </div>
             </div>
           </div>
         </article>
@@ -642,12 +676,13 @@ import {
   deleteBill,
   deleteTemplateDefinition,
   extractTemplateFile,
+  exportTemplateFile,
   fetchBillPage,
+  fetchExportableTemplates,
   fetchTemplateManagePage,
-  fetchTemplateOptions,
-  initFileUpload,
   loginClient,
   registerClient,
+  saveExtractedBillData,
   saveGeneratedTemplate,
   setAccessToken,
   updateTemplateStatus,
@@ -686,6 +721,7 @@ const selectedBillIds = ref([]);
 const extractFile = ref(null);
 const exportFile = ref(null);
 const extractingTemplate = ref(false);
+const exportingTemplate = ref(false);
 const savingTemplate = ref(false);
 const extractedFileKeys = ref(new Set());
 const selectedExtractId = ref("");
@@ -702,6 +738,7 @@ const registerError = ref("");
 
 const exportForm = reactive({
   templateId: "tpl-001",
+  outputFormat: "DOCX",
 });
 
 const billQuery = reactive({
@@ -816,7 +853,7 @@ const metaMap = {
   overview: {
     eyebrow: "Overview",
     title: "用户总览",
-    description: "预留看板位置，后续承载用户文件、提单和导出任务的综合状态。",
+    description: "",
   },
   bills: {
     eyebrow: "Stored BL Data",
@@ -831,7 +868,7 @@ const metaMap = {
   templates: {
     eyebrow: "Template Library",
     title: "模板管理",
-    description: "查看已保存模板、存储位置、版本与可用状态。",
+    description: "模板文件、存储位置与启用状态。",
   },
   export: {
     eyebrow: "Template Export",
@@ -842,11 +879,12 @@ const metaMap = {
 
 const savedBills = ref([...prototypeBills]);
 
-const templateOptions = ref([...prototypeTemplates]);
+const templateOptions = ref([]);
 
 const extractedTemplates = ref([]);
 const managedTemplates = ref([]);
 const exportJobs = ref([]);
+const templateStatusUpdating = ref(new Set());
 
 const currentMeta = computed(() => metaMap[currentView.value]);
 const avatarText = computed(() => (session.nickname || session.username || "U").slice(0, 2).toUpperCase());
@@ -1122,11 +1160,16 @@ async function removeSelectedBills() {
 
 async function loadTemplates() {
   try {
-    const records = await fetchTemplateOptions();
-    templateOptions.value = Array.isArray(records) && records.length ? records.map(normalizeTemplate) : [...prototypeTemplates];
+    const page = await fetchExportableTemplates();
+    const records = Array.isArray(page?.records) ? page.records : [];
+    templateOptions.value = records.filter(isExportableTemplate).map(normalizeTemplate);
+    if (!templateOptions.value.some((item) => item.id === exportForm.templateId)) {
+      exportForm.templateId = templateOptions.value[0]?.id || "";
+    }
   } catch (error) {
-    templateOptions.value = [...prototypeTemplates];
-    notify("模板接口待检查", error.message || "已保留原型模板选项。", "error");
+    templateOptions.value = [];
+    exportForm.templateId = "";
+    notify("可导出模板加载失败", error.message || "请检查 user-service。", "error");
   }
 }
 
@@ -1170,14 +1213,26 @@ function changeTemplatePage(step) {
 }
 
 async function toggleTemplateStatus(template) {
+  if (isTemplateStatusUpdating(template.id)) {
+    return;
+  }
+  templateStatusUpdating.value = new Set([...templateStatusUpdating.value, template.id]);
   try {
-    const nextStatus = template.status === 1 ? 0 : 1;
+    const nextStatus = Number(template.status) === 1 ? 0 : 1;
     await updateTemplateStatus(template.id, nextStatus);
     notify("模板状态已更新", `${template.templateName} 已${nextStatus === 1 ? "启用" : "停用"}。`, "backend");
     await Promise.allSettled([loadManagedTemplates(), loadTemplates()]);
   } catch (error) {
     notify("模板状态更新失败", error.message || "请检查 user-service。", "error");
+  } finally {
+    const next = new Set(templateStatusUpdating.value);
+    next.delete(template.id);
+    templateStatusUpdating.value = next;
   }
+}
+
+function isTemplateStatusUpdating(id) {
+  return templateStatusUpdating.value.has(id);
 }
 
 async function removeManagedTemplate(template) {
@@ -1276,7 +1331,7 @@ async function extractTemplate() {
   extractDialogOpen.value = true;
   notify(
     "模板已提取",
-    mappings.length ? `已解析 ${mappings.length} 个 Dify 字段映射。` : "已生成原型模板结果，可在后续接入真实解析。",
+    mappings.length ? `已解析 ${mappings.length} 个 Dify 字段映射。` : "模板提取完成。",
     "backend",
   );
 }
@@ -1436,22 +1491,106 @@ async function createExportJob() {
     notify("请先上传目标文件", "选择目标文件后再创建导出任务。", "error");
     return;
   }
-  try {
-    await initFileUpload(exportFile.value, "TEMPLATE_EXPORT");
-  } catch (error) {
-    notify("文件接口待实现", error.message || "后端上传初始化暂未完成，先进入原型队列。", "error");
+  if (!exportForm.templateId) {
+    notify("请先选择模板", "没有可用模板时，请先在模板提取中保存 DOCX 模板。", "error");
+    return;
   }
+  if (exportingTemplate.value) {
+    return;
+  }
+  exportingTemplate.value = true;
   const template = templateOptions.value.find((item) => item.id === exportForm.templateId);
+  const pendingId = Date.now();
   exportJobs.value = [
     {
-      id: Date.now(),
+      id: pendingId,
       template: template?.name || "未命名模板",
       file: exportFile.value.name,
-      status: "等待生成",
+      status: "Dify 正在抽取字段",
+      fields: [],
+      missing: [],
+      downloadUrl: "",
+      extractedFields: {},
+      sourceFileName: exportFile.value.name,
+      templateId: exportForm.templateId,
+      savingBusiness: false,
+      businessSaved: false,
     },
     ...exportJobs.value,
   ];
-  notify("导出任务已创建", "任务已进入原型队列，后续接入文件导出服务。", "backend");
+  try {
+    const result = await exportTemplateFile({
+      templateId: exportForm.templateId,
+      outputFormat: exportForm.outputFormat,
+      file: exportFile.value,
+    });
+    exportJobs.value = exportJobs.value.map((job) =>
+      job.id === pendingId
+        ? {
+            ...job,
+            status: result?.message || "导出完成",
+            file: result?.outputFileName || job.file,
+            fields: fieldsToRows(result?.extractedFields),
+            missing: result?.missingPlaceholders || [],
+            downloadUrl: result?.downloadUrl ? buildUserApiUrl(result.downloadUrl.replace(/^\/user/, "")) : "",
+            extractedFields: result?.extractedFields || {},
+          }
+        : job,
+    );
+    notify("导出完成", result?.message || "已生成可下载的标准文档。", "backend");
+  } catch (error) {
+    exportJobs.value = exportJobs.value.map((job) =>
+      job.id === pendingId
+        ? { ...job, status: error.message || "导出失败" }
+        : job,
+    );
+    notify("导出失败", error.message || "请检查 Dify 导出工作流和模板文件。", "error");
+  } finally {
+    exportingTemplate.value = false;
+  }
+}
+
+function fieldsToRows(fields) {
+  return Object.entries(fields || {}).map(([key, value]) => ({
+    key,
+    value: value == null ? "空白" : String(value),
+  }));
+}
+
+async function saveExportJobToBusiness(job) {
+  if (!job?.extractedFields || Object.keys(job.extractedFields).length === 0) {
+    notify("暂无可保存数据", "请先完成 Dify 字段抽取后再保存至业务数据。", "error");
+    return;
+  }
+  exportJobs.value = exportJobs.value.map((item) =>
+    item.id === job.id ? { ...item, savingBusiness: true } : item,
+  );
+  try {
+    const saved = await saveExtractedBillData({
+      templateId: job.templateId,
+      sourceFileName: job.sourceFileName || job.file,
+      fields: job.extractedFields,
+    });
+    exportJobs.value = exportJobs.value.map((item) =>
+      item.id === job.id
+        ? {
+            ...item,
+            savingBusiness: false,
+            businessSaved: true,
+            status: `业务数据已保存：${saved?.blNo || "提单"}`,
+          }
+        : item,
+    );
+    notify("业务数据已保存", `${saved?.blNo || "提单"} 已进入已存提单数据。`, "backend");
+    billPage.current = 1;
+    await loadBills();
+    currentView.value = "bills";
+  } catch (error) {
+    exportJobs.value = exportJobs.value.map((item) =>
+      item.id === job.id ? { ...item, savingBusiness: false } : item,
+    );
+    notify("业务数据保存失败", error.message || "请检查数据库和提单字段。", "error");
+  }
 }
 
 function normalizeBill(bill) {
@@ -1527,14 +1666,23 @@ function normalizeTemplate(template) {
   return {
     id: String(template.id ?? template.templateCode ?? Date.now()),
     name: template.templateName || template.name || "未命名模板",
+    contentFormat: template.contentFormat || "",
+    objectKey: template.objectKey || "",
   };
+}
+
+function isExportableTemplate(template) {
+  const objectKey = String(template.objectKey || "");
+  return Number(template.status) === 1
+    && String(template.contentFormat || "").toUpperCase() === "DOCX"
+    && objectKey.toLowerCase().endsWith(".docx");
 }
 
 function notify(title, message, type = "backend") {
   const id = Date.now() + Math.random();
-  toasts.value = [{ id, title, message, type }, ...toasts.value].slice(0, 3);
+  toasts.value = [{ id, title, message, type }].slice(0, 1);
   window.setTimeout(() => {
     toasts.value = toasts.value.filter((toast) => toast.id !== id);
-  }, 3200);
+  }, 2600);
 }
 </script>

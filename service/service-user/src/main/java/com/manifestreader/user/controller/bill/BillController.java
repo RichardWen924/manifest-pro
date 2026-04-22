@@ -6,6 +6,7 @@ import com.manifestreader.user.model.dto.BillCreateRequest;
 import com.manifestreader.user.model.dto.BillPageQuery;
 import com.manifestreader.user.model.dto.BillParseRequest;
 import com.manifestreader.user.model.dto.BillUpdateRequest;
+import com.manifestreader.user.model.dto.ExtractedBillSaveRequest;
 import com.manifestreader.user.model.vo.BillDetailVO;
 import com.manifestreader.user.model.vo.BillVO;
 import com.manifestreader.user.service.BillService;
@@ -48,6 +49,12 @@ public class BillController {
     @PostMapping
     public R<BillVO> create(@Valid @RequestBody BillCreateRequest request) {
         return R.ok(billService.create(request));
+    }
+
+    @Operation(summary = "将模板抽取结果保存为业务提单")
+    @PostMapping("/from-extracted-fields")
+    public R<BillVO> saveExtractedFields(@Valid @RequestBody ExtractedBillSaveRequest request) {
+        return R.ok(billService.saveExtractedFields(request));
     }
 
     @Operation(summary = "更新提单")
