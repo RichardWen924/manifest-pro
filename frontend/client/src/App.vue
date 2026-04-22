@@ -347,7 +347,14 @@
             <strong>{{ extractFile ? extractFile.name : "上传提单样本文件" }}</strong>
             <p>支持 PDF、Word、Excel、图片。当前仅生成交互原型记录。</p>
           </label>
-          <button class="primary-button full" type="button" @click="extractTemplate">开始提取模板</button>
+          <button
+            class="primary-button full"
+            type="button"
+            :disabled="extractingTemplate || isCurrentExtractFileDone"
+            @click="extractTemplate"
+          >
+            {{ extractButtonText }}
+          </button>
         </article>
 
         <article class="panel-card dark-panel">
@@ -453,6 +460,8 @@ const selectedBillId = ref("BL-001");
 const selectedBillIds = ref([]);
 const extractFile = ref(null);
 const exportFile = ref(null);
+const extractingTemplate = ref(false);
+const extractedFileKeys = ref(new Set());
 const toasts = ref([]);
 const loginError = ref("");
 const registerError = ref("");
@@ -590,6 +599,17 @@ const exportJobs = ref([]);
 const currentMeta = computed(() => metaMap[currentView.value]);
 const avatarText = computed(() => (session.nickname || session.username || "U").slice(0, 2).toUpperCase());
 const billTotalPages = computed(() => Math.max(1, Math.ceil(billPage.total / billPage.size)));
+const currentExtractFileKey = computed(() => (extractFile.value ? buildFileKey(extractFile.value) : ""));
+const isCurrentExtractFileDone = computed(() => Boolean(currentExtractFileKey.value && extractedFileKeys.value.has(currentExtractFileKey.value)));
+const extractButtonText = computed(() => {
+  if (extractingTemplate.value) {
+    return "正在提取，请稍候";
+  }
+  if (isCurrentExtractFileDone.value) {
+    return "该文件已提取";
+  }
+  return "开始提取模板";
+});
 const allCurrentBillsSelected = computed(
   () => savedBills.value.length > 0 && savedBills.value.every((bill) => selectedBillIds.value.includes(bill.id))
 );
@@ -885,15 +905,28 @@ async function extractTemplate() {
     notify("请先上传文件", "选择一个提单样本文件后再进行模板提取。", "error");
     return;
   }
+  if (extractingTemplate.value) {
+    return;
+  }
+  const fileKey = currentExtractFileKey.value;
+  if (extractedFileKeys.value.has(fileKey)) {
+    notify("文件已提取", "同一份文件只会发送一次 Dify 请求，请更换文件后再提取。", "error");
+    return;
+  }
+  extractingTemplate.value = true;
   let uploadResult = null;
   try {
     uploadResult = await extractTemplateFile(extractFile.value);
   } catch (error) {
     notify("模板提取接口待配置", error.message || "Dify 工作流暂未配置，先生成原型记录。", "error");
+    return;
+  } finally {
+    extractingTemplate.value = false;
   }
   const mappings = Array.isArray(uploadResult?.mappings)
     ? uploadResult.mappings
     : normalizeDifyWorkflowMappings(uploadResult);
+  extractedFileKeys.value = new Set([...extractedFileKeys.value, fileKey]);
   extractedTemplates.value = [
     {
       id: Date.now(),
@@ -909,6 +942,10 @@ async function extractTemplate() {
     mappings.length ? `已解析 ${mappings.length} 个 Dify 字段映射。` : "已生成原型模板结果，可在后续接入真实解析。",
     "backend",
   );
+}
+
+function buildFileKey(file) {
+  return [file.name, file.size, file.lastModified].join(":");
 }
 
 async function createExportJob() {
