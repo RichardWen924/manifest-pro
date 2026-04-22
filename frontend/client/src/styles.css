@@ -985,6 +985,36 @@ button:disabled {
   }
 }
 
+@keyframes resultPanelIn {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes drawCircle {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes drawCheck {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -1185,6 +1215,7 @@ button:disabled {
 }
 
 .extract-dialog {
+  position: relative;
   display: grid;
   gap: 16px;
   width: min(1360px, 96vw);
@@ -1227,6 +1258,96 @@ button:disabled {
   gap: 18px;
 }
 
+.save-result-panel {
+  position: absolute;
+  inset: 20px;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 12px;
+  border-radius: 22px;
+  padding: 34px;
+  background: rgba(255, 255, 255, 0.94);
+  text-align: center;
+  backdrop-filter: saturate(180%) blur(20px);
+  animation: resultPanelIn 0.22s ease both;
+}
+
+.save-result-panel h3 {
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(30px, 5vw, 58px);
+  letter-spacing: -0.04em;
+}
+
+.save-result-panel p {
+  max-width: 520px;
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.save-result-panel .eyebrow {
+  margin: 6px 0 -4px;
+}
+
+.save-result-mark {
+  display: grid;
+  width: 104px;
+  height: 104px;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(0, 113, 227, 0.08);
+}
+
+.save-result-panel.success .save-result-mark {
+  background: rgba(52, 199, 89, 0.12);
+  color: #1a8f42;
+}
+
+.save-result-panel.error .save-result-mark {
+  background: rgba(255, 59, 48, 0.12);
+  color: #d92d20;
+}
+
+.save-result-mark svg {
+  width: 86px;
+  height: 86px;
+}
+
+.save-result-mark circle,
+.save-result-mark path {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 5;
+}
+
+.save-result-panel.success .save-result-mark circle,
+.save-result-panel.error .save-result-mark circle {
+  stroke-dasharray: 176;
+  stroke-dashoffset: 176;
+  animation: drawCircle 0.58s ease forwards;
+}
+
+.save-result-panel.success .save-result-mark path,
+.save-result-panel.error .save-result-mark path {
+  stroke-dasharray: 48;
+  stroke-dashoffset: 48;
+  animation: drawCheck 0.42s 0.34s ease forwards;
+}
+
+.save-spinner {
+  width: 64px;
+  height: 64px;
+  border: 6px solid rgba(0, 113, 227, 0.16);
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: spin 0.86s linear infinite;
+}
+
 .file-preview-pane,
 .mapping-editor-pane {
   min-height: min(680px, 72vh);
@@ -1254,6 +1375,77 @@ button:disabled {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.45;
+}
+
+.source-preview-frame {
+  overflow: hidden;
+  min-height: min(560px, 58vh);
+  border: 1px solid rgba(29, 29, 31, 0.08);
+  border-radius: 16px;
+  background: #f7f9fc;
+}
+
+.source-preview-frame iframe,
+.source-preview-frame object,
+.source-preview-frame img {
+  display: block;
+  width: 100%;
+  height: min(560px, 58vh);
+  border: 0;
+  background: #ffffff;
+}
+
+.source-preview-frame img {
+  object-fit: contain;
+}
+
+.source-preview-frame.word {
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background:
+    linear-gradient(135deg, rgba(0, 113, 227, 0.08), transparent 36%),
+    #f7f9fc;
+}
+
+.source-preview-frame.word object {
+  min-height: min(520px, 54vh);
+  border-radius: 14px;
+}
+
+.word-preview-fallback {
+  display: grid;
+  place-items: center;
+  gap: 12px;
+  min-height: min(520px, 54vh);
+  border: 1px dashed rgba(0, 113, 227, 0.24);
+  border-radius: 14px;
+  padding: 28px;
+  background: rgba(255, 255, 255, 0.74);
+  text-align: center;
+}
+
+.word-preview-fallback strong {
+  font-family: var(--display);
+  font-size: 28px;
+}
+
+.word-preview-fallback p {
+  max-width: 420px;
+  margin: 0;
+  color: var(--muted);
+}
+
+.preview-footer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.download-template-link.neutral {
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--ink);
 }
 
 .template-preview-sheet {
@@ -1400,24 +1592,6 @@ button:disabled {
 .extract-save-actions {
   justify-content: flex-start;
   margin-top: 16px;
-}
-
-.inline-save-feedback {
-  margin: 12px 0 0;
-  border-radius: 12px;
-  padding: 12px 14px;
-  font-size: 14px;
-  font-weight: 800;
-}
-
-.inline-save-feedback.success {
-  background: rgba(52, 199, 89, 0.12);
-  color: #128038;
-}
-
-.inline-save-feedback.error {
-  background: rgba(255, 59, 48, 0.12);
-  color: #c11f1f;
 }
 
 .template-toolbar {

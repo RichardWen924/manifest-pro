@@ -466,33 +466,81 @@
             </div>
             <button class="mini-button" type="button" @click="closeExtractDialog">关闭</button>
           </header>
+          <section v-if="extractSaveFeedback.type" class="save-result-panel" :class="extractSaveFeedback.type">
+            <div class="save-result-mark">
+              <span v-if="extractSaveFeedback.type === 'saving'" class="save-spinner"></span>
+              <svg v-else-if="extractSaveFeedback.type === 'success'" viewBox="0 0 64 64" aria-hidden="true">
+                <circle cx="32" cy="32" r="28"></circle>
+                <path d="M19 33.5 28 42 46 23"></path>
+              </svg>
+              <svg v-else viewBox="0 0 64 64" aria-hidden="true">
+                <circle cx="32" cy="32" r="28"></circle>
+                <path d="M23 23 41 41"></path>
+                <path d="M41 23 23 41"></path>
+              </svg>
+            </div>
+            <p class="eyebrow">{{ extractSaveFeedback.type === "success" ? "Template Saved" : extractSaveFeedback.type === "error" ? "Save Failed" : "Saving" }}</p>
+            <h3>{{ extractSaveFeedback.title }}</h3>
+            <p>{{ extractSaveFeedback.message }}</p>
+            <button class="secondary-button" type="button" @click="closeExtractDialog">立即关闭</button>
+          </section>
           <div class="extract-workbench">
             <section class="file-preview-pane">
               <div class="panel-title compact">
-                <h2>剔除数据后的模板预览</h2>
-                <p>左侧只展示模板结构和占位符，右侧保留本次提取到的数据用于人工核对。</p>
+                <h2>原文件实时预览</h2>
+                <p>左侧展示上传的 PDF / Word / 图片原文件，右侧编辑 Dify 提取出的字段对应关系。</p>
               </div>
               <div class="blank-template-note">
-                <strong>{{ selectedExtractResult.templateStatus === "GENERATED" ? "已生成可下载 DOCX 模板" : "当前为浏览器模板预览" }}</strong>
-                <span>{{ templatePreviewMessage }}</span>
+                <strong>{{ selectedExtractResult.previewLabel }}</strong>
+                <span>{{ selectedExtractResult.templateMessage }}</span>
               </div>
-              <div class="template-preview-sheet" aria-label="剔除数据后的模板预览">
-                <div class="template-preview-brand">
-                  <span>MR</span>
-                  <div>
-                    <strong>Bill of Lading Template</strong>
-                    <small>{{ selectedExtractResult.name }}</small>
+              <div class="source-preview-frame" :class="selectedExtractResult.previewType">
+                <iframe
+                  v-if="selectedExtractResult.previewType === 'pdf'"
+                  :src="selectedExtractResult.previewUrl"
+                  title="PDF 原文件预览"
+                ></iframe>
+                <img
+                  v-else-if="selectedExtractResult.previewType === 'image'"
+                  :src="selectedExtractResult.previewUrl"
+                  alt="上传文件预览"
+                />
+                <object
+                  v-else-if="selectedExtractResult.previewType === 'word'"
+                  :data="selectedExtractResult.previewUrl"
+                  :type="selectedExtractResult.previewMimeType"
+                >
+                  <div class="word-preview-fallback">
+                    <strong>{{ selectedExtractResult.previewLabel }}</strong>
+                    <p>浏览器通常不能完整渲染本地 DOC/DOCX 版式；这里保留原文件预览入口，右侧字段可继续编辑。</p>
+                    <a class="download-template-link" :href="selectedExtractResult.previewUrl" :download="selectedExtractResult.fileName">
+                      打开或下载原文件
+                    </a>
                   </div>
+                </object>
+                <div v-else class="word-preview-fallback">
+                  <strong>{{ selectedExtractResult.previewLabel }}</strong>
+                  <p>当前文件类型暂不支持浏览器内预览，但字段对应关系仍可继续编辑和保存。</p>
+                  <a class="download-template-link" :href="selectedExtractResult.previewUrl" :download="selectedExtractResult.fileName">
+                    下载原文件
+                  </a>
                 </div>
-                <div class="template-preview-lines">
-                  <article v-for="mapping in selectedExtractResult.mappings" :key="`preview-${mapping.id}`" class="template-preview-line">
-                    <span>{{ mapping.description || mapping.placeholderKey || "未命名字段" }}</span>
-                    <code>{{ formatPlaceholder(mapping.placeholderKey) }}</code>
-                  </article>
-                </div>
-                <p class="template-preview-foot">
-                  已剔除样本中的实际业务数据。保存模板时仅写入字段结构、占位符和排序，不保存原始提单数据。
-                </p>
+              </div>
+              <div class="preview-footer-actions">
+                <a class="download-template-link neutral" :href="selectedExtractResult.previewUrl" :download="selectedExtractResult.fileName">
+                  下载原文件
+                </a>
+                <a
+                  v-if="selectedExtractResult.blankTemplateDownloadUrl"
+                  class="download-template-link"
+                  :href="buildUserApiUrl(selectedExtractResult.blankTemplateDownloadUrl.replace(/^\/user/, ''))"
+                  download
+                >
+                  下载剔除数据后的模板
+                </a>
+              </div>
+              <div class="template-preview-foot">
+                保存模板时只保存右侧字段结构、占位符和排序，不保存样本业务数据。
               </div>
             </section>
 
@@ -544,14 +592,10 @@
                   下载空白模板
                 </a>
               </div>
-              <p v-if="extractSaveFeedback.message" class="inline-save-feedback" :class="extractSaveFeedback.type">
-                {{ extractSaveFeedback.message }}
-              </p>
             </section>
           </div>
         </article>
       </section>
-
       <section v-if="currentView === 'export'" class="work-grid">
         <article class="panel-card">
           <div class="panel-title compact">
@@ -646,8 +690,10 @@ const savingTemplate = ref(false);
 const extractedFileKeys = ref(new Set());
 const selectedExtractId = ref("");
 const extractDialogOpen = ref(false);
+const saveCloseTimer = ref(null);
 const extractSaveFeedback = reactive({
   type: "",
+  title: "",
   message: "",
 });
 const toasts = ref([]);
@@ -809,16 +855,6 @@ const templateTotalPages = computed(() => Math.max(1, Math.ceil(templatePage.tot
 const currentExtractFileKey = computed(() => (extractFile.value ? buildFileKey(extractFile.value) : ""));
 const isCurrentExtractFileDone = computed(() => Boolean(currentExtractFileKey.value && extractedFileKeys.value.has(currentExtractFileKey.value)));
 const selectedExtractResult = computed(() => extractedTemplates.value.find((item) => item.id === selectedExtractId.value));
-const templatePreviewMessage = computed(() => {
-  const result = selectedExtractResult.value;
-  if (!result) {
-    return "";
-  }
-  if (result.templateStatus === "GENERATED") {
-    return "后端已基于 DOCX 生成真实空白模板，可下载校验版式。";
-  }
-  return result.templateMessage || "当前先根据 Dify 字段生成模板预览，PDF 转 DOCX 后续接入转换工具。";
-});
 const extractButtonText = computed(() => {
   if (extractingTemplate.value) {
     return "正在提取，请稍候";
@@ -1221,6 +1257,7 @@ async function extractTemplate() {
       id: resultId,
       extractId: uploadResult?.extractId || resultId,
       name: extractFile.value.name.replace(/\.[^.]+$/, "") || "新模板",
+      fileName: extractFile.value.name,
       fields: mappings.length || 18,
       mappings: mappings.map((mapping, index) => normalizeEditableMapping(mapping, index)),
       rawText: uploadResult?.rawText || "",
@@ -1230,6 +1267,7 @@ async function extractTemplate() {
       previewUrl: URL.createObjectURL(extractFile.value),
       previewType: getPreviewType(extractFile.value),
       previewLabel: getPreviewLabel(extractFile.value),
+      previewMimeType: getPreviewMimeType(extractFile.value),
       source: mappings.length ? "已兼容 Dify workflow mappings" : "原型占位结果",
     },
     ...extractedTemplates.value,
@@ -1250,12 +1288,13 @@ function buildFileKey(file) {
 function selectExtractResult(id) {
   selectedExtractId.value = id;
   extractDialogOpen.value = true;
-  extractSaveFeedback.type = "";
-  extractSaveFeedback.message = "";
+  resetExtractSaveFeedback();
 }
 
 function closeExtractDialog() {
+  clearSaveCloseTimer();
   extractDialogOpen.value = false;
+  resetExtractSaveFeedback();
 }
 
 function moveMapping(index, direction) {
@@ -1273,11 +1312,6 @@ function moveMapping(index, direction) {
   result.mappings = nextMappings;
 }
 
-function formatPlaceholder(value) {
-  const key = value?.trim() || "placeholder_key";
-  return `\${${key}}`;
-}
-
 async function saveTemplateDefinition() {
   const result = selectedExtractResult.value;
   if (!result) {
@@ -1285,8 +1319,8 @@ async function saveTemplateDefinition() {
     return;
   }
   savingTemplate.value = true;
-  extractSaveFeedback.type = "";
-  extractSaveFeedback.message = "";
+  clearSaveCloseTimer();
+  setExtractSaveFeedback("saving", "正在保存模板", "正在写入模板定义、版本、字段映射与存储位置信息。");
   try {
     const saved = await saveGeneratedTemplate({
       extractId: result.extractId || result.id,
@@ -1308,16 +1342,42 @@ async function saveTemplateDefinition() {
       saved?.message || `已保存模板定义，字段数 ${result.mappings.length}。`,
       "backend",
     );
-    extractSaveFeedback.type = "success";
-    extractSaveFeedback.message = saved?.message || `模板已入库，字段数 ${result.mappings.length}。`;
+    setExtractSaveFeedback("success", "模板保存成功", saved?.message || `模板已入库，字段数 ${result.mappings.length}。`);
     await Promise.allSettled([loadManagedTemplates(), loadTemplates()]);
+    scheduleExtractDialogClose();
   } catch (error) {
     const message = error.message || "请检查后端服务和数据库连接。";
-    extractSaveFeedback.type = "error";
-    extractSaveFeedback.message = `保存失败：${message}`;
+    setExtractSaveFeedback("error", "模板保存失败", message);
     notify("模板保存失败", message, "error");
+    scheduleExtractDialogClose();
   } finally {
     savingTemplate.value = false;
+  }
+}
+
+function setExtractSaveFeedback(type, title, message) {
+  extractSaveFeedback.type = type;
+  extractSaveFeedback.title = title;
+  extractSaveFeedback.message = message;
+}
+
+function resetExtractSaveFeedback() {
+  extractSaveFeedback.type = "";
+  extractSaveFeedback.title = "";
+  extractSaveFeedback.message = "";
+}
+
+function scheduleExtractDialogClose() {
+  clearSaveCloseTimer();
+  saveCloseTimer.value = window.setTimeout(() => {
+    closeExtractDialog();
+  }, 3000);
+}
+
+function clearSaveCloseTimer() {
+  if (saveCloseTimer.value) {
+    window.clearTimeout(saveCloseTimer.value);
+    saveCloseTimer.value = null;
   }
 }
 
@@ -1338,17 +1398,37 @@ function getPreviewType(file) {
   if (file.type.startsWith("image/")) {
     return "image";
   }
+  if (/\.(docx?|wps)$/i.test(file.name)) {
+    return "word";
+  }
   return "unsupported";
 }
 
 function getPreviewLabel(file) {
   if (file.name.toLowerCase().endsWith(".docx")) {
-    return "DOCX 模板文件";
+    return "Word DOCX 原文件";
   }
   if (file.name.toLowerCase().endsWith(".doc")) {
-    return "Word 文件";
+    return "Word DOC 原文件";
   }
-  return "文件预览待支持";
+  if (file.name.toLowerCase().endsWith(".pdf")) {
+    return "PDF 原文件";
+  }
+  if (file.type.startsWith("image/")) {
+    return "图片原文件";
+  }
+  return "原文件预览待支持";
+}
+
+function getPreviewMimeType(file) {
+  const lowerName = file.name.toLowerCase();
+  if (lowerName.endsWith(".docx")) {
+    return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  }
+  if (lowerName.endsWith(".doc")) {
+    return "application/msword";
+  }
+  return file.type || "application/octet-stream";
 }
 
 async function createExportJob() {
