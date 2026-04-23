@@ -8,6 +8,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class GatewaySecurityProperties {
 
     private List<String> whitelist = new ArrayList<>();
+    private String publicKeyPath = "service/service-auth/target/auth-keys/public.pem";
 
     public List<String> getWhitelist() {
         return whitelist;
@@ -15,5 +16,13 @@ public class GatewaySecurityProperties {
 
     public void setWhitelist(List<String> whitelist) {
         this.whitelist = whitelist;
+    }
+
+    public String getPublicKeyPath() {
+        return publicKeyPath;
+    }
+
+    public void setPublicKeyPath(String publicKeyPath) {
+        this.publicKeyPath = publicKeyPath;
     }
 }

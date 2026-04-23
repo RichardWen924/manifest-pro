@@ -3,6 +3,23 @@ spring:
     name: manifest-reader-gateway
   config:
     import: optional:classpath:dev.yml
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: auth-service
+              uri: ${AUTH_SERVICE_URI:http://127.0.0.1:8083}
+              predicates:
+                - Path=/auth/**,/internal/auth/**
+            - id: admin-service
+              uri: ${ADMIN_SERVICE_URI:http://127.0.0.1:8081}
+              predicates:
+                - Path=/admin/**
+            - id: user-service
+              uri: ${USER_SERVICE_URI:http://127.0.0.1:8082}
+              predicates:
+                - Path=/user/**
 
 server:
   port: 8080
@@ -29,3 +46,4 @@ manifest:
         - /auth/token/refresh
         - /auth/token/introspect
         - /auth/public-key
+      public-key-path: ${GATEWAY_JWT_PUBLIC_KEY_PATH:service/service-auth/target/auth-keys/public.pem}

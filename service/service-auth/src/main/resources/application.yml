@@ -26,5 +26,5 @@ manifest:
       issuer: ${AUTH_TOKEN_ISSUER:manifest-reader-auth}
       access-token-ttl: ${AUTH_ACCESS_TOKEN_TTL:30m}
       refresh-token-ttl: ${AUTH_REFRESH_TOKEN_TTL:7d}
-      public-key-path: ${AUTH_PUBLIC_KEY_PATH:}
-      private-key-path: ${AUTH_PRIVATE_KEY_PATH:}
+      public-key-path: ${AUTH_PUBLIC_KEY_PATH:service/service-auth/target/auth-keys/public.pem}
+      private-key-path: ${AUTH_PRIVATE_KEY_PATH:service/service-auth/target/auth-keys/private.pem}

@@ -488,8 +488,8 @@
           <div class="extract-workbench">
             <section class="file-preview-pane">
               <div class="panel-title compact">
-                <h2>原文件实时预览</h2>
-                <p>左侧展示上传的 PDF / Word / 图片原文件，右侧编辑 Dify 提取出的字段对应关系。</p>
+                <h2>替换后模板预览</h2>
+                <p>左侧展示已剔除样本数据并写入占位符后的效果，右侧校对字段对应关系。</p>
               </div>
               <div class="blank-template-note">
                 <strong>{{ selectedExtractResult.previewLabel }}</strong>
@@ -499,7 +499,7 @@
                 <iframe
                   v-if="selectedExtractResult.previewType === 'pdf'"
                   :src="selectedExtractResult.previewUrl"
-                  title="PDF 原文件预览"
+                  title="替换后模板预览"
                 ></iframe>
                 <img
                   v-else-if="selectedExtractResult.previewType === 'image'"
@@ -513,23 +513,23 @@
                 >
                   <div class="word-preview-fallback">
                     <strong>{{ selectedExtractResult.previewLabel }}</strong>
-                    <p>浏览器通常不能完整渲染本地 DOC/DOCX 版式；这里保留原文件预览入口，右侧字段可继续编辑。</p>
-                    <a class="download-template-link" :href="selectedExtractResult.previewUrl" :download="selectedExtractResult.fileName">
-                      打开或下载原文件
+                    <p>浏览器通常不能完整渲染 DOC/DOCX 版式；可以下载预览文件核对占位符效果。</p>
+                    <a class="download-template-link" :href="selectedExtractResult.previewUrl" :download="selectedExtractResult.previewFileName">
+                      下载预览文件
                     </a>
                   </div>
                 </object>
                 <div v-else class="word-preview-fallback">
                   <strong>{{ selectedExtractResult.previewLabel }}</strong>
                   <p>当前文件类型暂不支持浏览器内预览，但字段对应关系仍可继续编辑和保存。</p>
-                  <a class="download-template-link" :href="selectedExtractResult.previewUrl" :download="selectedExtractResult.fileName">
-                    下载原文件
+                  <a class="download-template-link" :href="selectedExtractResult.previewUrl" :download="selectedExtractResult.previewFileName">
+                    下载预览文件
                   </a>
                 </div>
               </div>
               <div class="preview-footer-actions">
-                <a class="download-template-link neutral" :href="selectedExtractResult.previewUrl" :download="selectedExtractResult.fileName">
-                  下载原文件
+                <a class="download-template-link neutral" :href="selectedExtractResult.previewUrl" :download="selectedExtractResult.previewFileName">
+                  下载预览文件
                 </a>
                 <a
                   v-if="selectedExtractResult.blankTemplateDownloadUrl"
@@ -537,7 +537,7 @@
                   :href="buildUserApiUrl(selectedExtractResult.blankTemplateDownloadUrl.replace(/^\/user/, ''))"
                   download
                 >
-                  下载剔除数据后的模板
+                  下载 DOCX 模板
                 </a>
               </div>
               <div class="template-preview-foot">
@@ -590,7 +590,7 @@
                   :href="buildUserApiUrl(selectedExtractResult.blankTemplateDownloadUrl.replace(/^\/user/, ''))"
                   download
                 >
-                  下载空白模板
+                  下载 DOCX 模板
                 </a>
               </div>
             </section>
@@ -1220,7 +1220,7 @@ async function toggleTemplateStatus(template) {
   try {
     const nextStatus = Number(template.status) === 1 ? 0 : 1;
     await updateTemplateStatus(template.id, nextStatus);
-    notify("模板状态已更新", `${template.templateName} 已${nextStatus === 1 ? "启用" : "停用"}。`, "backend");
+    notify(nextStatus === 1 ? "已启用" : "已停用", "", "backend");
     await Promise.allSettled([loadManagedTemplates(), loadTemplates()]);
   } catch (error) {
     notify("模板状态更新失败", error.message || "请检查 user-service。", "error");
@@ -1306,6 +1306,7 @@ async function extractTemplate() {
     ? uploadResult.mappings
     : normalizeDifyWorkflowMappings(uploadResult);
   extractedFileKeys.value = new Set([...extractedFileKeys.value, fileKey]);
+  const serverPreview = resolveTemplatePreview(uploadResult, extractFile.value);
   const resultId = `extract-${Date.now()}`;
   extractedTemplates.value = [
     {
@@ -1319,10 +1320,14 @@ async function extractTemplate() {
       templateStatus: uploadResult?.templateStatus || "PREVIEW_ONLY",
       templateMessage: uploadResult?.templateMessage || "已生成字段预览。",
       blankTemplateDownloadUrl: uploadResult?.blankTemplateDownloadUrl || "",
-      previewUrl: URL.createObjectURL(extractFile.value),
-      previewType: getPreviewType(extractFile.value),
-      previewLabel: getPreviewLabel(extractFile.value),
-      previewMimeType: getPreviewMimeType(extractFile.value),
+      templatePreviewUrl: uploadResult?.templatePreviewUrl || "",
+      templatePreviewContentType: uploadResult?.templatePreviewContentType || "",
+      sourcePreviewUrl: URL.createObjectURL(extractFile.value),
+      previewUrl: serverPreview.url,
+      previewType: serverPreview.type,
+      previewLabel: serverPreview.label,
+      previewMimeType: serverPreview.mimeType,
+      previewFileName: serverPreview.fileName,
       source: mappings.length ? "已兼容 Dify workflow mappings" : "原型占位结果",
     },
     ...extractedTemplates.value,
@@ -1404,7 +1409,6 @@ async function saveTemplateDefinition() {
     const message = error.message || "请检查后端服务和数据库连接。";
     setExtractSaveFeedback("error", "模板保存失败", message);
     notify("模板保存失败", message, "error");
-    scheduleExtractDialogClose();
   } finally {
     savingTemplate.value = false;
   }
@@ -1457,6 +1461,32 @@ function getPreviewType(file) {
     return "word";
   }
   return "unsupported";
+}
+
+function resolveTemplatePreview(uploadResult, file) {
+  const contentType = uploadResult?.templatePreviewContentType || "";
+  const previewUrl = uploadResult?.templatePreviewUrl || "";
+  if (previewUrl) {
+    const type = contentType.includes("pdf")
+      ? "pdf"
+      : contentType.includes("wordprocessingml") || contentType.includes("msword")
+        ? "word"
+        : "unsupported";
+    return {
+      url: buildUserApiUrl(previewUrl.replace(/^\/user/, "")),
+      type,
+      label: type === "pdf" ? "已替换占位符 PDF 预览" : "已替换占位符 DOCX 模板",
+      mimeType: contentType || "application/octet-stream",
+      fileName: file.name.replace(/\.[^.]+$/, "") + "-template-preview" + (type === "pdf" ? ".pdf" : ".docx"),
+    };
+  }
+  return {
+    url: URL.createObjectURL(file),
+    type: getPreviewType(file),
+    label: getPreviewLabel(file),
+    mimeType: getPreviewMimeType(file),
+    fileName: file.name,
+  };
 }
 
 function getPreviewLabel(file) {
@@ -1680,9 +1710,18 @@ function isExportableTemplate(template) {
 
 function notify(title, message, type = "backend") {
   const id = Date.now() + Math.random();
-  toasts.value = [{ id, title, message, type }].slice(0, 1);
+  toasts.value = [{
+    id,
+    title: trimToastPunctuation(title),
+    message: trimToastPunctuation(message),
+    type,
+  }].slice(0, 1);
   window.setTimeout(() => {
     toasts.value = toasts.value.filter((toast) => toast.id !== id);
   }, 2600);
+}
+
+function trimToastPunctuation(value) {
+  return String(value || "").replace(/[。.!！]+$/g, "");
 }
 </script>

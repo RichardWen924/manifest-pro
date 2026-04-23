@@ -111,6 +111,16 @@ public class UserTemplateController {
                 .body(new FileSystemResource(file.path()));
     }
 
+    @Operation(summary = "预览已替换占位符后的模板")
+    @GetMapping("/extract/{extractId}/preview")
+    public ResponseEntity<Resource> previewBlankTemplate(@PathVariable String extractId) {
+        BlankTemplateFile file = templateService.getBlankTemplatePreview(extractId);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(file.previewContentType()))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + file.previewFileName() + "\"")
+                .body(new FileSystemResource(file.previewPath()));
+    }
+
     @Operation(summary = "按模板导出文件")
     @PostMapping(value = "/export", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public R<TemplateExportResultVO> exportWithTemplate(

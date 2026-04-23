@@ -2,7 +2,6 @@ package com.manifestreader.user.model.dto;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
 import java.util.List;
 
 public record TemplateExtractSaveRequest(
@@ -15,7 +14,6 @@ public record TemplateExtractSaveRequest(
         String templateName,
         String templateType,
         @Valid
-        @NotEmpty(message = "模板字段映射不能为空")
         List<TemplateFieldMappingSaveRequest> mappings,
         String rawText
 ) {

@@ -71,7 +71,12 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public void logout(String authorization) {
-        // TODO 解析 accessToken jti，写入 Redis 黑名单并撤销 refreshToken 会话。
+        String token = bearerToken(authorization);
+        if (token == null) {
+            return;
+        }
+        TokenPrincipal principal = tokenService.parse(token);
+        tokenService.revoke(principal.jti());
     }
 
     @Override
@@ -82,14 +87,38 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public TokenIntrospectionResponse introspect(TokenIntrospectionRequest request) {
-        // TODO 完整校验签名、过期时间、jti 黑名单和会话状态。
-        return new TokenIntrospectionResponse(false, null, null, null, Collections.emptyList(), Collections.emptyList(), null, null);
+        try {
+            TokenPrincipal principal = tokenService.parse(request.token());
+            return new TokenIntrospectionResponse(
+                    true,
+                    principal.userId(),
+                    principal.companyId(),
+                    principal.username(),
+                    principal.roleCodes(),
+                    principal.permissionCodes(),
+                    principal.jti(),
+                    principal.expiresAt()
+            );
+        } catch (BusinessException ex) {
+            return new TokenIntrospectionResponse(false, null, null, null, Collections.emptyList(), Collections.emptyList(), null, null);
+        }
     }
 
     @Override
     public CurrentUserResponse me(String authorization) {
-        // TODO 从网关透传身份或 accessToken 解析结果获取当前用户。
-        throw new BusinessException(ErrorCode.NOT_IMPLEMENTED);
+        String token = bearerToken(authorization);
+        if (token == null) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED);
+        }
+        TokenPrincipal principal = tokenService.parse(token);
+        return new CurrentUserResponse(
+                principal.userId(),
+                principal.companyId(),
+                principal.username(),
+                principal.username(),
+                principal.roleCodes(),
+                principal.permissionCodes()
+        );
     }
 
     @Override
@@ -139,6 +168,13 @@ public class AuthServiceImpl implements AuthService {
 
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private String bearerToken(String authorization) {
+        if (!hasText(authorization) || !authorization.startsWith("Bearer ")) {
+            return null;
+        }
+        return authorization.substring("Bearer ".length());
     }
 
     private List<String> findRoleCodes(Long userId) {

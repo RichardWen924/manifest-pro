@@ -106,6 +106,10 @@ p {
   line-height: 1.25;
 }
 
+.toast span:empty {
+  display: none;
+}
+
 .toast.error {
   border-color: rgba(255, 59, 48, 0.2);
 }

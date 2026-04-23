@@ -35,49 +35,53 @@ public class DifyWorkflowClientImpl implements DifyWorkflowClient {
 
     @Override
     public String runTemplateExtraction(MultipartFile file) {
-        validateConfig();
+        String apiKey = resolveTemplateApiKey();
+        validateConfig(apiKey, "模板提取");
         log.info("Dify template extraction start, baseUrl={}, uploadPath={}, workflowPath={}, fileName={}",
                 normalizeBaseUrl(properties.getBaseUrl()),
                 resolveEndpoint(properties.getFileUploadPath()),
                 resolveEndpoint(properties.getWorkflowRunPath()),
                 file.getOriginalFilename());
-        String uploadFileId = uploadFile(file, properties.getUser());
+        String uploadFileId = uploadFile(file, properties.getUser(), apiKey);
         return runWorkflow(
                 uploadFileId,
                 properties.getWorkflowRunPath(),
                 properties.getTemplateFileInputName(),
                 properties.getResponseMode(),
                 properties.getUser(),
-                "template extraction"
+                "template extraction",
+                apiKey
         );
     }
 
     @Override
     public String runTemplateExport(MultipartFile file) {
-        validateConfig();
+        String apiKey = resolveExportApiKey();
+        validateConfig(apiKey, "模板导出");
         log.info("Dify template export start, baseUrl={}, uploadPath={}, workflowPath={}, fileName={}",
                 normalizeBaseUrl(properties.getBaseUrl()),
                 resolveEndpoint(properties.getFileUploadPath()),
                 resolveEndpoint(properties.getExportWorkflowRunPath()),
                 file.getOriginalFilename());
-        String uploadFileId = uploadFile(file, properties.getExportUser());
+        String uploadFileId = uploadFile(file, properties.getExportUser(), apiKey);
         return runWorkflow(
                 uploadFileId,
                 properties.getExportWorkflowRunPath(),
                 properties.getExportFileInputName(),
                 properties.getExportResponseMode(),
                 properties.getExportUser(),
-                "template export"
+                "template export",
+                apiKey
         );
     }
 
-    private String uploadFile(MultipartFile file, String user) {
+    private String uploadFile(MultipartFile file, String user, String apiKey) {
         try {
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
             body.add("user", user);
             body.add("file", new MultipartInputFile(file.getBytes(), file.getOriginalFilename()));
 
-            String response = restClient()
+            String response = restClient(apiKey)
                     .post()
                     .uri(resolveEndpoint(properties.getFileUploadPath()))
                     .contentType(MediaType.MULTIPART_FORM_DATA)
@@ -102,7 +106,8 @@ public class DifyWorkflowClientImpl implements DifyWorkflowClient {
             String fileInputName,
             String responseMode,
             String user,
-            String action
+            String action,
+            String apiKey
     ) {
         Map<String, Object> requestBody = Map.of(
                 "inputs", Map.of(
@@ -117,7 +122,7 @@ public class DifyWorkflowClientImpl implements DifyWorkflowClient {
         );
 
         try {
-            String response = restClient()
+            String response = restClient(apiKey)
                     .post()
                     .uri(resolveEndpoint(workflowRunPath))
                     .contentType(MediaType.APPLICATION_JSON)
@@ -131,10 +136,10 @@ public class DifyWorkflowClientImpl implements DifyWorkflowClient {
         }
     }
 
-    private RestClient restClient() {
+    private RestClient restClient(String apiKey) {
         return RestClient.builder()
                 .baseUrl(normalizeBaseUrl(properties.getBaseUrl()))
-                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + properties.getApiKey())
+                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
                 .build();
     }
 
@@ -184,13 +189,25 @@ public class DifyWorkflowClientImpl implements DifyWorkflowClient {
                 .trim();
     }
 
-    private void validateConfig() {
+    private void validateConfig(String apiKey, String action) {
         if (!properties.isEnabled()) {
             throw new BusinessException("Dify 工作流未启用，请先配置 manifest.dify.enabled=true");
         }
-        if (!StringUtils.hasText(properties.getBaseUrl()) || !StringUtils.hasText(properties.getApiKey())) {
-            throw new BusinessException("Dify baseUrl/apiKey 未配置");
+        if (!StringUtils.hasText(properties.getBaseUrl()) || !StringUtils.hasText(apiKey)) {
+            throw new BusinessException("Dify " + action + " baseUrl/apiKey 未配置");
         }
+    }
+
+    private String resolveTemplateApiKey() {
+        return StringUtils.hasText(properties.getTemplateApiKey())
+                ? properties.getTemplateApiKey()
+                : properties.getApiKey();
+    }
+
+    private String resolveExportApiKey() {
+        return StringUtils.hasText(properties.getExportApiKey())
+                ? properties.getExportApiKey()
+                : properties.getApiKey();
     }
 
     private String readFirstText(String json, String... pointers) {

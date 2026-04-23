@@ -7,6 +7,8 @@ public class DifyWorkflowProperties {
 
     private String baseUrl = "";
     private String apiKey = "";
+    private String templateApiKey = "";
+    private String exportApiKey = "";
     private String fileUploadPath = "/v1/files/upload";
     private String workflowRunPath = "/v1/workflows/run";
     private String templateFileInputName = "file";
@@ -32,6 +34,22 @@ public class DifyWorkflowProperties {
 
     public void setApiKey(String apiKey) {
         this.apiKey = apiKey;
+    }
+
+    public String getTemplateApiKey() {
+        return templateApiKey;
+    }
+
+    public void setTemplateApiKey(String templateApiKey) {
+        this.templateApiKey = templateApiKey;
+    }
+
+    public String getExportApiKey() {
+        return exportApiKey;
+    }
+
+    public void setExportApiKey(String exportApiKey) {
+        this.exportApiKey = exportApiKey;
     }
 
     public String getFileUploadPath() {

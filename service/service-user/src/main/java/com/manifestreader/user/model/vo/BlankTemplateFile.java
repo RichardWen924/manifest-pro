@@ -4,6 +4,12 @@ import java.nio.file.Path;
 
 public record BlankTemplateFile(
         String fileName,
-        Path path
+        Path path,
+        String previewFileName,
+        String previewContentType,
+        Path previewPath
 ) {
+    public BlankTemplateFile(String fileName, Path path) {
+        this(fileName, path, null, null, null);
+    }
 }

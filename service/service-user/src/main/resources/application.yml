@@ -31,6 +31,8 @@ manifest:
     enabled: ${DIFY_ENABLED:false}
     base-url: ${DIFY_BASE_URL:}
     api-key: ${DIFY_API_KEY:}
+    template-api-key: ${DIFY_TEMPLATE_API_KEY:${DIFY_API_KEY:}}
+    export-api-key: ${DIFY_EXPORT_API_KEY:${DIFY_API_KEY:}}
     file-upload-path: ${DIFY_FILE_UPLOAD_PATH:/v1/files/upload}
     workflow-run-path: ${DIFY_WORKFLOW_RUN_PATH:/v1/workflows/run}
     template-file-input-name: ${DIFY_TEMPLATE_FILE_INPUT_NAME:file}

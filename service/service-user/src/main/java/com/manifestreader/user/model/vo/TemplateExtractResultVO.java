@@ -9,6 +9,8 @@ public record TemplateExtractResultVO(
         String templateStatus,
         String templateMessage,
         String blankTemplateDownloadUrl,
+        String templatePreviewUrl,
+        String templatePreviewContentType,
         List<TemplateFieldMappingVO> mappings,
         String rawText
 ) {

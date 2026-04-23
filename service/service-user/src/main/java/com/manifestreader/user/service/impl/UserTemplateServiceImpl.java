@@ -214,6 +214,8 @@ public class UserTemplateServiceImpl implements UserTemplateService {
                 blankTemplate.status(),
                 blankTemplate.message(),
                 blankTemplate.downloadUrl(),
+                blankTemplate.previewUrl(),
+                blankTemplate.previewContentType(),
                 parsed.mappings(),
                 parsed.rawText()
         );
@@ -229,14 +231,23 @@ public class UserTemplateServiceImpl implements UserTemplateService {
     }
 
     @Override
+    public BlankTemplateFile getBlankTemplatePreview(String extractId) {
+        BlankTemplateFile file = getBlankTemplate(extractId);
+        if (file.previewPath() == null || !Files.exists(file.previewPath()) || !StringUtils.hasText(file.previewContentType())) {
+            throw new BusinessException(ErrorCode.NOT_FOUND.getCode(), "模板预览不存在或尚未生成");
+        }
+        return file;
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public TemplateExtractSaveResultVO saveGeneratedTemplate(TemplateExtractSaveRequest request) {
-        List<TemplateFieldMappingSaveRequest> mappings = request.mappings() == null ? List.of() : request.mappings();
+        List<TemplateFieldMappingSaveRequest> mappings = resolveSaveMappings(request);
         if (mappings.isEmpty()) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "没有可保存的字段映射");
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "没有可保存的字段映射，请重新提取模板字段后再保存");
         }
 
-        FileAssetEntity fileAsset = createLocalFileAsset(request);
+        FileAssetEntity fileAsset = createMinioTemplateFileAsset(request);
         TemplateEntity template = createTemplate(request);
         TemplateVersionEntity version = createTemplateVersion(template.getId(), fileAsset.getId(), mappings);
         template.setCurrentVersionId(version.getId());
@@ -249,7 +260,7 @@ public class UserTemplateServiceImpl implements UserTemplateService {
                 version.getId(),
                 mappings.size(),
                 true,
-                "模板定义已保存，样本业务数据未入库"
+                "模板定义已保存，模板文件已写入 MinIO"
         );
     }
 
@@ -301,7 +312,7 @@ public class UserTemplateServiceImpl implements UserTemplateService {
                 missing,
                 parsed.rawText(),
                 "GENERATED",
-                missing.isEmpty() ? "模板导出完成" : "模板导出完成，但存在未返回字段，请检查缺失占位符"
+                missing.isEmpty() ? "模板导出完成，文件已写入 MinIO" : "模板导出完成并写入 MinIO，但存在未返回字段，请检查缺失占位符"
         );
     }
 
@@ -481,29 +492,45 @@ public class UserTemplateServiceImpl implements UserTemplateService {
         }
     }
 
-    private FileAssetEntity createLocalFileAsset(TemplateExtractSaveRequest request) {
+    private List<TemplateFieldMappingSaveRequest> resolveSaveMappings(TemplateExtractSaveRequest request) {
+        if (request.mappings() != null && !request.mappings().isEmpty()) {
+            return request.mappings();
+        }
+        TemplateExtractResultVO cached = extractResultCache.get(request.extractId());
+        if (cached == null || cached.mappings() == null || cached.mappings().isEmpty()) {
+            return List.of();
+        }
+        return cached.mappings().stream()
+                .map(item -> new TemplateFieldMappingSaveRequest(
+                        item.originalText(),
+                        item.placeholderKey(),
+                        item.dataType(),
+                        item.description(),
+                        null
+                ))
+                .toList();
+    }
+
+    private FileAssetEntity createMinioTemplateFileAsset(TemplateExtractSaveRequest request) {
         BlankTemplateFile blankTemplateFile = blankTemplateCache.get(request.extractId());
-        StoredObject storedObject = blankTemplateFile == null
-                ? null
-                : objectStorageService.put(
-                        "templates/" + currentCompanyId() + "/" + safeText(request.extractId(), "manual-" + System.currentTimeMillis()) + "/" + blankTemplateFile.fileName(),
-                        blankTemplateFile.path(),
-                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                );
+        if (blankTemplateFile == null || !Files.exists(blankTemplateFile.path())) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "当前提取结果没有可保存的 DOCX 空白模板，请上传 DOCX 样本或先完成 PDF 转 DOCX 能力");
+        }
+        StoredObject storedObject = objectStorageService.put(
+                "templates/" + currentCompanyId() + "/" + safeText(request.extractId(), "manual-" + System.currentTimeMillis()) + "/" + blankTemplateFile.fileName(),
+                blankTemplateFile.path(),
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        );
         FileAssetEntity entity = new FileAssetEntity();
         entity.setCompanyId(currentCompanyId());
         entity.setBizType("TEMPLATE");
-        entity.setFileName(limitText(blankTemplateFile == null ? safeFileName(request.fileName()) : blankTemplateFile.fileName(), 255));
+        entity.setFileName(limitText(blankTemplateFile.fileName(), 255));
         entity.setOriginalName(limitText(safeFileName(request.fileName()), 255));
-        entity.setContentType(blankTemplateFile == null
-                ? "application/json"
-                : "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-        entity.setFileSize(storedObject == null ? resolveTemplateFileSize(blankTemplateFile, request) : storedObject.size());
-        entity.setStorageType(storedObject == null ? "LOCAL" : storedObject.storageType());
-        entity.setBucketName(storedObject == null ? null : storedObject.bucketName());
-        entity.setObjectKey(storedObject == null
-                ? limitText("template-extract/" + safeText(request.extractId(), "manual-" + System.currentTimeMillis()) + ".json", 255)
-                : limitText(storedObject.objectKey(), 255));
+        entity.setContentType("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+        entity.setFileSize(storedObject.size());
+        entity.setStorageType(storedObject.storageType());
+        entity.setBucketName(storedObject.bucketName());
+        entity.setObjectKey(limitText(storedObject.objectKey(), 255));
         entity.setFileHash(request.extractId());
         entity.setStatus(1);
         entity.setCreatedBy(currentUserId());
@@ -568,47 +595,193 @@ public class UserTemplateServiceImpl implements UserTemplateService {
             MultipartFile file,
             List<TemplateFieldMappingVO> mappings
     ) {
-        if (!originalFileName.toLowerCase().endsWith(".docx")) {
-            return new BlankTemplateResult(
-                    "PREVIEW_ONLY",
-                    "当前文件先展示提取数据；生成 DOCX 空白模板需要上传 DOCX，PDF 后续接入转换工具。",
-                    null
-            );
-        }
         try {
             Path workDir = Files.createTempDirectory("manifest-template-" + extractId + "-");
-            Path inputPath = workDir.resolve("source.docx");
+            Path inputPath = workDir.resolve("source-" + safeFileName(originalFileName));
             Path mappingPath = workDir.resolve("mappings.json");
             Path outputPath = workDir.resolve("blank-template.docx");
             file.transferTo(inputPath);
             objectMapper.writeValue(mappingPath.toFile(), mappings);
 
-            Process process = new ProcessBuilder(
-                    "python3",
-                    resolveScriptPath(),
-                    inputPath.toString(),
-                    mappingPath.toString(),
-                    outputPath.toString()
-            ).redirectErrorStream(true).start();
-            String processOutput = new String(process.getInputStream().readAllBytes());
-            int exitCode = process.waitFor();
-            if (exitCode != 0 || !Files.exists(outputPath)) {
-                log.warn("DOCX blank template generation failed, exitCode={}, output={}", exitCode, processOutput);
-                return new BlankTemplateResult("FAILED", "DOCX 空白模板生成失败，请检查 python-docx 环境。", null);
+            Path sourceDocxPath = resolveSourceDocx(inputPath, originalFileName, workDir);
+            BlankTemplateResult result = generateBlankTemplateFromDocx(sourceDocxPath, mappingPath, outputPath, originalFileName, extractId);
+            if (!"GENERATED".equals(result.status())) {
+                return result;
             }
 
-            String blankFileName = originalFileName.replaceFirst("(?i)\\.docx$", "-blank-template.docx");
-            blankTemplateCache.put(extractId, new BlankTemplateFile(blankFileName, outputPath));
+            String blankFileName = stripExtension(safeFileName(originalFileName)) + "-blank-template.docx";
+            TemplatePreviewFile previewFile = createBlankTemplatePreview(outputPath, blankFileName, workDir);
+            blankTemplateCache.put(extractId, new BlankTemplateFile(
+                    blankFileName,
+                    outputPath,
+                    previewFile.fileName(),
+                    previewFile.contentType(),
+                    previewFile.path()
+            ));
             return new BlankTemplateResult(
                     "GENERATED",
-                    "已生成可下载的 DOCX 空白模板。",
-                    "/user/templates/extract/" + extractId + "/blank-template"
+                    sourceDocxPath.equals(inputPath) ? "已完成占位符替换，可预览并确认保存。" : "已先通过 LibreOffice 转为 DOCX，并完成占位符替换。",
+                    "/user/templates/extract/" + extractId + "/blank-template",
+                    "/user/templates/extract/" + extractId + "/preview",
+                    previewFile.contentType()
             );
         } catch (IOException ex) {
             return new BlankTemplateResult("FAILED", "DOCX 空白模板生成失败：文件处理异常。", null);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             return new BlankTemplateResult("FAILED", "DOCX 空白模板生成被中断。", null);
+        } catch (BusinessException ex) {
+            log.warn("Blank template generation skipped, extractId={}, fileName={}, message={}", extractId, originalFileName, ex.getMessage());
+            return new BlankTemplateResult("PREVIEW_ONLY", ex.getMessage(), null);
+        }
+    }
+
+    private Path resolveSourceDocx(Path inputPath, String originalFileName, Path workDir) throws IOException, InterruptedException {
+        String lowerName = originalFileName.toLowerCase();
+        if (lowerName.endsWith(".docx")) {
+            return inputPath;
+        }
+        if (lowerName.endsWith(".pdf")) {
+            return convertPdfToDocx(inputPath, workDir);
+        }
+        if (lowerName.endsWith(".doc")) {
+            return convertToDocx(inputPath, workDir);
+        }
+        throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "当前仅支持 PDF、DOC、DOCX 生成模板");
+    }
+
+    private Path convertPdfToDocx(Path inputPath, Path workDir) throws IOException, InterruptedException {
+        Path outputPath = workDir.resolve(stripExtension(inputPath.getFileName().toString()) + ".docx");
+        try {
+            Process process = new ProcessBuilder(
+                    "python3",
+                    resolvePdfToDocxScriptPath(),
+                    inputPath.toString(),
+                    outputPath.toString()
+            ).redirectErrorStream(true).start();
+            String processOutput = new String(process.getInputStream().readAllBytes());
+            int exitCode = process.waitFor();
+            if (exitCode == 0 && Files.exists(outputPath)) {
+                return outputPath;
+            }
+            log.warn("pdf2docx conversion failed, exitCode={}, output={}", exitCode, processOutput);
+        } catch (IOException ex) {
+            log.warn("pdf2docx conversion command failed, path={}", inputPath, ex);
+        }
+        throw new BusinessException(
+                ErrorCode.BAD_REQUEST.getCode(),
+                "PDF 已完成字段提取，但当前环境缺少可用的 PDF 转 DOCX 组件，暂不能生成可保存模板；请先上传 DOCX 样本，或安装 pdf2docx 后重试"
+        );
+    }
+
+    private Path convertToDocx(Path inputPath, Path workDir) throws IOException, InterruptedException {
+        String soffice = resolveSofficeCommand();
+        if (!StringUtils.hasText(soffice)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "当前环境未安装 LibreOffice/soffice，无法先将 PDF/DOC 转为 DOCX");
+        }
+        Process process = new ProcessBuilder(
+                soffice,
+                "--headless",
+                "--convert-to",
+                "docx",
+                "--outdir",
+                workDir.toString(),
+                inputPath.toString()
+        ).redirectErrorStream(true).start();
+        String processOutput = new String(process.getInputStream().readAllBytes());
+        int exitCode = process.waitFor();
+        Path outputPath = workDir.resolve(stripExtension(inputPath.getFileName().toString()) + ".docx");
+        if (exitCode != 0 || !Files.exists(outputPath)) {
+            log.warn("Source file to DOCX conversion failed, exitCode={}, output={}", exitCode, processOutput);
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR.getCode(), "PDF/DOC 转 DOCX 失败，请检查 LibreOffice 是否支持该文件");
+        }
+        return outputPath;
+    }
+
+    private BlankTemplateResult generateBlankTemplateFromDocx(
+            Path inputPath,
+            Path mappingPath,
+            Path outputPath,
+            String originalFileName,
+            String extractId
+    ) throws IOException, InterruptedException {
+        Process process = new ProcessBuilder(
+                "python3",
+                resolveScriptPath(),
+                inputPath.toString(),
+                mappingPath.toString(),
+                outputPath.toString()
+        ).redirectErrorStream(true).start();
+        String processOutput = new String(process.getInputStream().readAllBytes());
+        int exitCode = process.waitFor();
+        if (exitCode != 0 || !Files.exists(outputPath)) {
+            log.warn("DOCX blank template generation failed, extractId={}, fileName={}, exitCode={}, output={}",
+                    extractId, originalFileName, exitCode, processOutput);
+            return new BlankTemplateResult("FAILED", "DOCX 空白模板生成失败，请检查 python-docx 环境或转换后的 DOCX 内容。", null);
+        }
+        return new BlankTemplateResult("GENERATED", "已生成可下载的 DOCX 空白模板。", null);
+    }
+
+    private TemplatePreviewFile createBlankTemplatePreview(Path docxPath, String docxFileName, Path workDir) {
+        try {
+            Path pdfPath = convertDocxToPdf(docxPath, workDir);
+            return new TemplatePreviewFile(
+                    stripExtension(docxFileName) + "-preview.pdf",
+                    "application/pdf",
+                    pdfPath
+            );
+        } catch (RuntimeException | IOException | InterruptedException ex) {
+            if (ex instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            log.warn("Blank template PDF preview generation failed, fallback to DOCX preview, path={}", docxPath, ex);
+            return new TemplatePreviewFile(
+                    docxFileName,
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    docxPath
+            );
+        }
+    }
+
+    private BlankTemplateResult generatePlaceholderTemplate(
+            String extractId,
+            String originalFileName,
+            List<TemplateFieldMappingVO> mappings
+    ) {
+        if (mappings == null || mappings.isEmpty()) {
+            return new BlankTemplateResult("PREVIEW_ONLY", "当前文件先展示提取数据；Dify 未返回字段，无法生成 DOCX 模板。", null);
+        }
+        try {
+            Path workDir = Files.createTempDirectory("manifest-template-placeholder-" + extractId + "-");
+            Path mappingPath = workDir.resolve("mappings.json");
+            Path outputPath = workDir.resolve("blank-template.docx");
+            objectMapper.writeValue(mappingPath.toFile(), mappings);
+
+            Process process = new ProcessBuilder(
+                    "python3",
+                    resolvePlaceholderScriptPath(),
+                    mappingPath.toString(),
+                    outputPath.toString()
+            ).redirectErrorStream(true).start();
+            String processOutput = new String(process.getInputStream().readAllBytes());
+            int exitCode = process.waitFor();
+            if (exitCode != 0 || !Files.exists(outputPath)) {
+                log.warn("Placeholder DOCX template generation failed, exitCode={}, output={}", exitCode, processOutput);
+                return new BlankTemplateResult("FAILED", "占位符 DOCX 模板生成失败，请检查 python-docx 环境。", null);
+            }
+
+            String blankFileName = stripExtension(safeFileName(originalFileName)) + "-blank-template.docx";
+            blankTemplateCache.put(extractId, new BlankTemplateFile(blankFileName, outputPath));
+            return new BlankTemplateResult(
+                    "GENERATED",
+                    "已根据提取字段生成可保存的 DOCX 占位符模板；如需保留原 PDF 版式，后续可接入 PDF 转 DOCX。",
+                    "/user/templates/extract/" + extractId + "/blank-template"
+            );
+        } catch (IOException ex) {
+            return new BlankTemplateResult("FAILED", "占位符 DOCX 模板生成失败：文件处理异常。", null);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            return new BlankTemplateResult("FAILED", "占位符 DOCX 模板生成被中断。", null);
         }
     }
 
@@ -622,6 +795,30 @@ public class UserTemplateServiceImpl implements UserTemplateService {
             }
         }
         return new ClassPathResource("scripts/generate_blank_docx.py").getFile().getAbsolutePath();
+    }
+
+    private String resolvePdfToDocxScriptPath() throws IOException {
+        for (Path candidate : List.of(
+                Path.of("service/service-user/scripts/convert_pdf_to_docx.py"),
+                Path.of("scripts/convert_pdf_to_docx.py")
+        )) {
+            if (Files.exists(candidate)) {
+                return candidate.toAbsolutePath().toString();
+            }
+        }
+        return new ClassPathResource("scripts/convert_pdf_to_docx.py").getFile().getAbsolutePath();
+    }
+
+    private String resolvePlaceholderScriptPath() throws IOException {
+        for (Path candidate : List.of(
+                Path.of("service/service-user/scripts/generate_placeholder_docx.py"),
+                Path.of("scripts/generate_placeholder_docx.py")
+        )) {
+            if (Files.exists(candidate)) {
+                return candidate.toAbsolutePath().toString();
+            }
+        }
+        return new ClassPathResource("scripts/generate_placeholder_docx.py").getFile().getAbsolutePath();
     }
 
     private String resolveRenderScriptPath() throws IOException {
@@ -641,7 +838,7 @@ public class UserTemplateServiceImpl implements UserTemplateService {
     }
 
     private String resolveSofficeCommand() {
-        for (String command : List.of("soffice", "libreoffice")) {
+        for (String command : List.of("soffice", "libreoffice", "/Applications/LibreOffice.app/Contents/MacOS/soffice")) {
             try {
                 Process process = new ProcessBuilder(command, "--version")
                         .redirectErrorStream(true)
@@ -811,7 +1008,19 @@ public class UserTemplateServiceImpl implements UserTemplateService {
     private record BlankTemplateResult(
             String status,
             String message,
-            String downloadUrl
+            String downloadUrl,
+            String previewUrl,
+            String previewContentType
+    ) {
+        private BlankTemplateResult(String status, String message, String downloadUrl) {
+            this(status, message, downloadUrl, null, null);
+        }
+    }
+
+    private record TemplatePreviewFile(
+            String fileName,
+            String contentType,
+            Path path
     ) {
     }
 

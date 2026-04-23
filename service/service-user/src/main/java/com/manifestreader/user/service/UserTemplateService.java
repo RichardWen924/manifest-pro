@@ -34,6 +34,8 @@ public interface UserTemplateService {
 
     BlankTemplateFile getBlankTemplate(String extractId);
 
+    BlankTemplateFile getBlankTemplatePreview(String extractId);
+
     TemplateExtractSaveResultVO saveGeneratedTemplate(TemplateExtractSaveRequest request);
 
     TemplateExportResultVO exportWithTemplate(Long templateId, String outputFormat, MultipartFile file);
