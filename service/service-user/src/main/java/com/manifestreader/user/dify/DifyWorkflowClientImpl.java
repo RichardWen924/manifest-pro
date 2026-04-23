@@ -75,6 +75,27 @@ public class DifyWorkflowClientImpl implements DifyWorkflowClient {
         );
     }
 
+    @Override
+    public String runBillExtraction(MultipartFile file) {
+        String apiKey = resolveBillApiKey();
+        validateConfig(apiKey, "提单提取");
+        log.info("Dify bill extraction start, baseUrl={}, uploadPath={}, workflowPath={}, fileName={}",
+                normalizeBaseUrl(properties.getBaseUrl()),
+                resolveEndpoint(properties.getFileUploadPath()),
+                resolveEndpoint(properties.getBillWorkflowRunPath()),
+                file.getOriginalFilename());
+        String uploadFileId = uploadFile(file, properties.getBillUser(), apiKey);
+        return runWorkflow(
+                uploadFileId,
+                properties.getBillWorkflowRunPath(),
+                properties.getBillFileInputName(),
+                properties.getBillResponseMode(),
+                properties.getBillUser(),
+                "bill extraction",
+                apiKey
+        );
+    }
+
     private String uploadFile(MultipartFile file, String user, String apiKey) {
         try {
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
@@ -208,6 +229,13 @@ public class DifyWorkflowClientImpl implements DifyWorkflowClient {
         return StringUtils.hasText(properties.getExportApiKey())
                 ? properties.getExportApiKey()
                 : properties.getApiKey();
+    }
+
+    private String resolveBillApiKey() {
+        if (StringUtils.hasText(properties.getBillApiKey())) {
+            return properties.getBillApiKey();
+        }
+        return resolveExportApiKey();
     }
 
     private String readFirstText(String json, String... pointers) {

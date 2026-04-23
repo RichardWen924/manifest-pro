@@ -10,30 +10,42 @@ import com.manifestreader.model.entity.BlCargoItemEntity;
 import com.manifestreader.model.entity.BlDocumentEntity;
 import com.manifestreader.model.entity.BlIssueInfoEntity;
 import com.manifestreader.model.entity.BlPartyEntity;
+import com.manifestreader.user.dify.DifyTemplateExportParser;
+import com.manifestreader.user.dify.DifyWorkflowClient;
 import com.manifestreader.user.mapper.UserBillMapper;
 import com.manifestreader.user.mapper.UserCargoItemMapper;
 import com.manifestreader.user.mapper.UserChargeMapper;
 import com.manifestreader.user.mapper.UserIssueInfoMapper;
 import com.manifestreader.user.mapper.UserPartyMapper;
 import com.manifestreader.user.model.dto.BillCreateRequest;
+import com.manifestreader.user.model.dto.BillExtractSaveRequest;
 import com.manifestreader.user.model.dto.BillPageQuery;
 import com.manifestreader.user.model.dto.BillParseRequest;
 import com.manifestreader.user.model.dto.BillUpdateRequest;
 import com.manifestreader.user.model.dto.ExtractedBillSaveRequest;
+import com.manifestreader.user.model.vo.BillExtractFieldVO;
+import com.manifestreader.user.model.vo.BillExtractResultVO;
 import com.manifestreader.user.model.vo.BillDetailVO;
 import com.manifestreader.user.model.vo.BillVO;
 import com.manifestreader.user.service.BillService;
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.math.BigDecimal;
 import java.util.Collections;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class BillServiceImpl implements BillService {
@@ -46,19 +58,26 @@ public class BillServiceImpl implements BillService {
     private final UserPartyMapper partyMapper;
     private final UserChargeMapper chargeMapper;
     private final UserIssueInfoMapper issueInfoMapper;
+    private final DifyWorkflowClient difyWorkflowClient;
+    private final DifyTemplateExportParser exportParser;
+    private final ConcurrentMap<String, BillExtractResultVO> billExtractCache = new ConcurrentHashMap<>();
 
     public BillServiceImpl(
             UserBillMapper billMapper,
             UserCargoItemMapper cargoItemMapper,
             UserPartyMapper partyMapper,
             UserChargeMapper chargeMapper,
-            UserIssueInfoMapper issueInfoMapper
+            UserIssueInfoMapper issueInfoMapper,
+            DifyWorkflowClient difyWorkflowClient,
+            DifyTemplateExportParser exportParser
     ) {
         this.billMapper = billMapper;
         this.cargoItemMapper = cargoItemMapper;
         this.partyMapper = partyMapper;
         this.chargeMapper = chargeMapper;
         this.issueInfoMapper = issueInfoMapper;
+        this.difyWorkflowClient = difyWorkflowClient;
+        this.exportParser = exportParser;
     }
 
     @Override
@@ -177,6 +196,47 @@ public class BillServiceImpl implements BillService {
         }
         replaceExtractedChildren(entity.getId(), fields);
         return toVO(entity, findFirstCargo(entity.getId()));
+    }
+
+    @Override
+    public BillExtractResultVO extractBill(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "请上传需要提取的提单文件");
+        }
+        String extractId = hashFile(file);
+        BillExtractResultVO cached = billExtractCache.get(extractId);
+        if (cached != null) {
+            return cached;
+        }
+        synchronized (billExtractCache) {
+            cached = billExtractCache.get(extractId);
+            if (cached != null) {
+                return cached;
+            }
+            String difyResponse = difyWorkflowClient.runBillExtraction(file);
+            DifyTemplateExportParser.ParsedExportFields parsed = exportParser.parse(difyResponse);
+            BillExtractResultVO result = toBillExtractResult(extractId, file.getOriginalFilename(), parsed);
+            billExtractCache.put(extractId, result);
+            return result;
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public BillVO saveExtractedResult(BillExtractSaveRequest request) {
+        Map<String, Object> fields = request.fields();
+        if (fields == null || fields.isEmpty()) {
+            BillExtractResultVO cached = billExtractCache.get(request.extractId());
+            if (cached == null || cached.fields() == null || cached.fields().isEmpty()) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "提单提取结果不存在或已过期，请重新上传提取");
+            }
+            fields = cached.fields();
+        }
+        return saveExtractedFields(new ExtractedBillSaveRequest(
+                request.templateId(),
+                request.sourceFileName(),
+                fields
+        ));
     }
 
     @Override
@@ -403,6 +463,43 @@ public class BillServiceImpl implements BillService {
     private String buildExtractedRemark(ExtractedBillSaveRequest request) {
         String source = StringUtils.hasText(request.sourceFileName()) ? request.sourceFileName() : "Dify 抽取结果";
         return "由模板导出抽取结果保存：" + source;
+    }
+
+    private BillExtractResultVO toBillExtractResult(
+            String extractId,
+            String fileName,
+            DifyTemplateExportParser.ParsedExportFields parsed
+    ) {
+        Map<String, Object> fields = parsed.fields();
+        List<BillExtractFieldVO> fieldList = fields.entrySet().stream()
+                .map(entry -> new BillExtractFieldVO(entry.getKey(), entry.getValue()))
+                .toList();
+        String blNo = firstText(fields, "bl_no", "booking_no");
+        String status = StringUtils.hasText(blNo) ? "READY_TO_SAVE" : "REVIEW_REQUIRED";
+        String message = StringUtils.hasText(blNo)
+                ? "提单字段已提取，请确认后保存为业务数据"
+                : "提取结果缺少 bl_no/booking_no，请人工补齐后再保存";
+        return new BillExtractResultVO(
+                extractId,
+                StringUtils.hasText(fileName) ? fileName : "bill-file",
+                fields.size(),
+                fields,
+                fieldList,
+                parsed.rawText(),
+                status,
+                message
+        );
+    }
+
+    private String hashFile(MultipartFile file) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(file.getBytes()));
+        } catch (IOException ex) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR.getCode(), "读取上传文件失败");
+        } catch (NoSuchAlgorithmException ex) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR.getCode(), "文件指纹算法不可用");
+        }
     }
 
     private boolean hasAny(Map<String, Object> fields, String... keys) {

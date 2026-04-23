@@ -7,4 +7,6 @@ public interface DifyWorkflowClient {
     String runTemplateExtraction(MultipartFile file);
 
     String runTemplateExport(MultipartFile file);
+
+    String runBillExtraction(MultipartFile file);
 }

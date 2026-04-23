@@ -114,6 +114,22 @@ export async function saveExtractedBillData(payload) {
   });
 }
 
+export async function extractBillFile(file) {
+  const formData = new FormData();
+  formData.append("file", file);
+  return request(USER_BASE, "/bills/extract", {
+    method: "POST",
+    body: formData,
+  });
+}
+
+export async function saveBillExtractResult(payload) {
+  return request(USER_BASE, "/bills/extract/save", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function fetchTemplateOptions() {
   return request(USER_BASE, "/templates/usable");
 }

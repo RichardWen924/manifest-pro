@@ -3,11 +3,13 @@ package com.manifestreader.user.controller.bill;
 import com.manifestreader.common.result.PageResult;
 import com.manifestreader.common.result.R;
 import com.manifestreader.user.model.dto.BillCreateRequest;
+import com.manifestreader.user.model.dto.BillExtractSaveRequest;
 import com.manifestreader.user.model.dto.BillPageQuery;
 import com.manifestreader.user.model.dto.BillParseRequest;
 import com.manifestreader.user.model.dto.BillUpdateRequest;
 import com.manifestreader.user.model.dto.ExtractedBillSaveRequest;
 import com.manifestreader.user.model.vo.BillDetailVO;
+import com.manifestreader.user.model.vo.BillExtractResultVO;
 import com.manifestreader.user.model.vo.BillVO;
 import com.manifestreader.user.service.BillService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -20,7 +22,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.multipart.MultipartFile;
 
 @Tag(name = "用户端-提单")
 @RestController
@@ -55,6 +60,18 @@ public class BillController {
     @PostMapping("/from-extracted-fields")
     public R<BillVO> saveExtractedFields(@Valid @RequestBody ExtractedBillSaveRequest request) {
         return R.ok(billService.saveExtractedFields(request));
+    }
+
+    @Operation(summary = "上传提单并调用 Dify 提取业务字段")
+    @PostMapping(value = "/extract", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public R<BillExtractResultVO> extract(@RequestPart("file") MultipartFile file) {
+        return R.ok(billService.extractBill(file));
+    }
+
+    @Operation(summary = "确认保存提单提取结果")
+    @PostMapping("/extract/save")
+    public R<BillVO> saveExtractedResult(@Valid @RequestBody BillExtractSaveRequest request) {
+        return R.ok(billService.saveExtractedResult(request));
     }
 
     @Operation(summary = "更新提单")

@@ -42,3 +42,8 @@ manifest:
     export-file-input-name: ${DIFY_EXPORT_FILE_INPUT_NAME:file}
     export-response-mode: ${DIFY_EXPORT_RESPONSE_MODE:blocking}
     export-user: ${DIFY_EXPORT_USER:manifest-reader-export}
+    bill-api-key: ${DIFY_BILL_API_KEY:${DIFY_EXPORT_API_KEY:${DIFY_API_KEY:}}}
+    bill-workflow-run-path: ${DIFY_BILL_WORKFLOW_RUN_PATH:${DIFY_EXPORT_WORKFLOW_RUN_PATH:/v1/workflows/run}}
+    bill-file-input-name: ${DIFY_BILL_FILE_INPUT_NAME:${DIFY_EXPORT_FILE_INPUT_NAME:file}}
+    bill-response-mode: ${DIFY_BILL_RESPONSE_MODE:${DIFY_EXPORT_RESPONSE_MODE:blocking}}
+    bill-user: ${DIFY_BILL_USER:manifest-reader-bill}

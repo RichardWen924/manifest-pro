@@ -18,6 +18,11 @@ public class DifyWorkflowProperties {
     private String exportFileInputName = "file";
     private String exportResponseMode = "blocking";
     private String exportUser = "manifest-reader-export";
+    private String billApiKey = "";
+    private String billWorkflowRunPath = "/v1/workflows/run";
+    private String billFileInputName = "file";
+    private String billResponseMode = "blocking";
+    private String billUser = "manifest-reader-bill";
     private boolean enabled = false;
 
     public String getBaseUrl() {
@@ -122,6 +127,46 @@ public class DifyWorkflowProperties {
 
     public void setExportUser(String exportUser) {
         this.exportUser = exportUser;
+    }
+
+    public String getBillApiKey() {
+        return billApiKey;
+    }
+
+    public void setBillApiKey(String billApiKey) {
+        this.billApiKey = billApiKey;
+    }
+
+    public String getBillWorkflowRunPath() {
+        return billWorkflowRunPath;
+    }
+
+    public void setBillWorkflowRunPath(String billWorkflowRunPath) {
+        this.billWorkflowRunPath = billWorkflowRunPath;
+    }
+
+    public String getBillFileInputName() {
+        return billFileInputName;
+    }
+
+    public void setBillFileInputName(String billFileInputName) {
+        this.billFileInputName = billFileInputName;
+    }
+
+    public String getBillResponseMode() {
+        return billResponseMode;
+    }
+
+    public void setBillResponseMode(String billResponseMode) {
+        this.billResponseMode = billResponseMode;
+    }
+
+    public String getBillUser() {
+        return billUser;
+    }
+
+    public void setBillUser(String billUser) {
+        this.billUser = billUser;
     }
 
     public boolean isEnabled() {
