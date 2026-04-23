@@ -487,14 +487,6 @@
           </section>
           <div class="extract-workbench">
             <section class="file-preview-pane">
-              <div class="panel-title compact">
-                <h2>替换后模板预览</h2>
-                <p>左侧展示已剔除样本数据并写入占位符后的效果，右侧校对字段对应关系。</p>
-              </div>
-              <div class="blank-template-note">
-                <strong>{{ selectedExtractResult.previewLabel }}</strong>
-                <span>{{ selectedExtractResult.templateMessage }}</span>
-              </div>
               <div class="source-preview-frame" :class="selectedExtractResult.previewType">
                 <iframe
                   v-if="selectedExtractResult.previewType === 'pdf'"

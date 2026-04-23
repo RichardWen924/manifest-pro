@@ -43,6 +43,55 @@ def replace_text(text: str, fields: dict):
     return PLACEHOLDER_RE.sub(repl, text or "")
 
 
+def surgical_replace_in_paragraph(paragraph, target: str, replacement: str) -> bool:
+    runs = paragraph.runs
+    if not runs or not target:
+        return False
+
+    full_text = ""
+    boundaries = []
+    for index, run in enumerate(runs):
+        text = run.text or ""
+        start = len(full_text)
+        full_text += text
+        boundaries.append((start, len(full_text), index))
+
+    match_start = full_text.find(target)
+    if match_start == -1:
+        return False
+    match_end = match_start + len(target)
+
+    start_run_idx = None
+    end_run_idx = None
+    for start, end, index in boundaries:
+        if start <= match_start < end:
+            start_run_idx = index
+        if start < match_end <= end:
+            end_run_idx = index
+
+    if start_run_idx is None or end_run_idx is None:
+        return False
+
+    start_run = runs[start_run_idx]
+    start_text = start_run.text or ""
+    offset_start = match_start - boundaries[start_run_idx][0]
+
+    if start_run_idx == end_run_idx:
+        prefix = start_text[:offset_start]
+        suffix = start_text[offset_start + len(target):]
+        set_run_text_with_breaks(start_run, prefix + replacement + suffix)
+        return True
+
+    set_run_text_with_breaks(start_run, start_text[:offset_start] + replacement)
+    end_run = runs[end_run_idx]
+    end_text = end_run.text or ""
+    offset_end = match_end - boundaries[end_run_idx][0]
+    end_run.text = end_text[offset_end:]
+    for index in range(start_run_idx + 1, end_run_idx):
+        runs[index].text = ""
+    return True
+
+
 def set_run_text_with_breaks(run, value: str):
     parts = value.splitlines()
     if not parts:
@@ -60,17 +109,19 @@ def clear_paragraph_to_text(paragraph, value: str):
         set_run_text_with_breaks(paragraph.add_run(), value)
         return
     set_run_text_with_breaks(runs[0], value)
-    for index in range(len(runs) - 1, 0, -1):
-        paragraph._p.remove(runs[index]._r)
+    for index in range(1, len(runs)):
+        # Keep run/style nodes intact; only clear the text payload.
+        runs[index].text = ""
 
 
 def render_paragraph(paragraph, fields: dict):
     original = paragraph.text or ""
     if "${" not in original:
         return
-    rendered = replace_text(original, fields)
-    if rendered != original:
-        clear_paragraph_to_text(paragraph, rendered)
+    placeholders = PLACEHOLDER_RE.findall(original)
+    for key in placeholders:
+        if key in fields:
+            surgical_replace_in_paragraph(paragraph, "${" + key + "}", fields[key])
 
 
 def render_table(table, fields: dict):

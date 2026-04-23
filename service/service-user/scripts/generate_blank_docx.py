@@ -158,8 +158,9 @@ def surgical_replace_in_paragraph(paragraph, target: str, replacement: str) -> b
     end_text = end_run.text or ""
     offset_end = match_end - boundaries[end_run_idx][0]
     end_run.text = end_text[offset_end:]
-    for index in range(end_run_idx - 1, start_run_idx, -1):
-        paragraph._p.remove(runs[index]._r)
+    for index in range(start_run_idx + 1, end_run_idx):
+        # Keep the original run nodes so Word layout/style structure is not rebuilt.
+        runs[index].text = ""
     return True
 
 
@@ -170,8 +171,9 @@ def clear_and_set_paragraph(paragraph, text: str):
             paragraph.add_run(text)
         return
     runs[0].text = text
-    for index in range(len(runs) - 1, 0, -1):
-        paragraph._p.remove(runs[index]._r)
+    for index in range(1, len(runs)):
+        # Preserve run/style nodes; only remove visible content.
+        runs[index].text = ""
 
 
 def load_mappings(mapping_path: Path):

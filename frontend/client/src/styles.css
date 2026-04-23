@@ -1253,6 +1253,8 @@ button:disabled {
   display: grid;
   place-items: center;
   padding: 24px;
+  overflow: hidden;
+  overscroll-behavior: contain;
   background: rgba(0, 0, 0, 0.58);
   backdrop-filter: blur(14px);
 }
@@ -1260,10 +1262,13 @@ button:disabled {
 .extract-dialog {
   position: relative;
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 16px;
   width: min(1360px, 96vw);
+  height: min(920px, 92vh);
   max-height: 92vh;
-  overflow: auto;
+  overflow: hidden;
+  overscroll-behavior: contain;
   border-radius: 26px;
   padding: 20px;
   background: #eef2f7;
@@ -1299,6 +1304,8 @@ button:disabled {
   grid-column: 1 / -1;
   grid-template-columns: minmax(360px, 0.95fr) minmax(420px, 1.05fr);
   gap: 18px;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .save-result-panel {
@@ -1393,7 +1400,10 @@ button:disabled {
 
 .file-preview-pane,
 .mapping-editor-pane {
-  min-height: min(680px, 72vh);
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+  flex-direction: column;
   border-radius: 18px;
   padding: 18px;
   background: var(--white);
@@ -1421,8 +1431,10 @@ button:disabled {
 }
 
 .source-preview-frame {
-  overflow: hidden;
-  min-height: min(560px, 58vh);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
   border: 1px solid rgba(29, 29, 31, 0.08);
   border-radius: 16px;
   background: #f7f9fc;
@@ -1433,7 +1445,9 @@ button:disabled {
 .source-preview-frame img {
   display: block;
   width: 100%;
-  height: min(560px, 58vh);
+  min-width: 760px;
+  height: 100%;
+  min-height: 560px;
   border: 0;
   background: #ffffff;
 }
@@ -1445,6 +1459,7 @@ button:disabled {
 .source-preview-frame.word {
   display: grid;
   place-items: center;
+  overflow: auto;
   padding: 18px;
   background:
     linear-gradient(135deg, rgba(0, 113, 227, 0.08), transparent 36%),
@@ -1577,9 +1592,11 @@ button:disabled {
 
 .mapping-editor-list {
   display: grid;
-  max-height: min(480px, 50vh);
+  flex: 1 1 auto;
+  min-height: 0;
   gap: 12px;
   overflow: auto;
+  overscroll-behavior: contain;
   padding-right: 4px;
 }
 
