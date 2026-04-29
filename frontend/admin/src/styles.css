@@ -418,8 +418,9 @@ select:focus {
 }
 
 .sidebar-exit-button:hover {
-  background: #ffffff;
-  border-color: rgba(91, 140, 255, 0.24);
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.26);
+  color: #b42318;
   transform: translateY(-1px);
 }
 
