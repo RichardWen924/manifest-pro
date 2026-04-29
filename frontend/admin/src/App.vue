@@ -77,27 +77,33 @@
           :disabled="item.locked"
           @click="switchView(item.key)"
         >
-          <span class="nav-icon">{{ item.icon }}</span>
+          <span class="nav-icon" aria-hidden="true" v-html="getIconSvg(item.icon)"></span>
           <span v-if="!sidebarCollapsed">{{ item.label }}</span>
           <small v-if="item.locked && !sidebarCollapsed">超级管理员</small>
         </button>
       </nav>
+
+      <div class="sidebar-footer">
+        <button class="sidebar-exit-button" type="button" @click="logout">
+          {{ sidebarCollapsed ? "⎋" : "退出" }}
+        </button>
+      </div>
     </aside>
 
     <main class="workspace">
       <header class="workspace-topbar">
-        <div>
+        <div class="hero-copy-block">
           <p class="eyebrow">{{ currentMeta.eyebrow }}</p>
           <h1>{{ currentMeta.title }}</h1>
           <p class="connection-note" :class="{ mock: apiSource === 'mock' }">
             {{ apiSource === 'backend' ? '已连接后端 /admin/**' : '当前使用本地 mock 数据，未连接到后端接口' }}
           </p>
-        </div>
-        <div class="topbar-actions">
-          <button class="secondary-button" type="button" @click="sidebarCollapsed = !sidebarCollapsed">
-            {{ sidebarCollapsed ? "展开边栏" : "收起边栏" }}
-          </button>
-          <button class="ghost-light-button" type="button" @click="logout">退出</button>
+          <div class="hero-meta-strip" aria-label="Admin summary">
+            <span v-for="item in adminQuickStats" :key="item.label" class="hero-meta-pill">
+              <strong>{{ item.value }}</strong>
+              <small>{{ item.label }}</small>
+            </span>
+          </div>
         </div>
       </header>
 
@@ -401,6 +407,17 @@ const permissions = [
   { title: "接口权限", desc: "后续与后端 `/admin/**` 权限校验策略对齐。" },
 ];
 
+const iconMap = Object.freeze({
+  dashboard:
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></g></svg>',
+  users:
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M16 3.128a4 4 0 0 1 0 7.744M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></g></svg>',
+  files:
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M15 2h-4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V8"/><path d="M16.706 2.706A2.4 2.4 0 0 0 15 2v5a1 1 0 0 0 1 1h5a2.4 2.4 0 0 0-.706-1.706zM5 7a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h8a2 2 0 0 0 1.732-1"/></g></svg>',
+  shield:
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12l2 2l4-4"/></g></svg>',
+});
+
 const currentMeta = computed(() => {
   const metaMap = {
     dashboard: { eyebrow: "Dashboard", title: "工作台看板" },
@@ -414,15 +431,24 @@ const currentMeta = computed(() => {
 const roleText = computed(() => (session.role === "SUPER_ADMIN" ? "超级管理员" : "管理员"));
 
 const sidebarItems = computed(() => [
-  { key: "dashboard", label: "工作台看板", icon: "⌂", locked: false },
-  { key: "users", label: "用户管理", icon: "◎", locked: false },
-  { key: "userData", label: "用户数据管理", icon: "▦", locked: false },
-  { key: "permissions", label: "权限管理", icon: "◇", locked: session.role !== "SUPER_ADMIN" },
+  { key: "dashboard", label: "工作台看板", icon: "dashboard", locked: false },
+  { key: "users", label: "用户管理", icon: "users", locked: false },
+  { key: "userData", label: "用户数据管理", icon: "files", locked: false },
+  { key: "permissions", label: "权限管理", icon: "shield", locked: session.role !== "SUPER_ADMIN" },
 ]);
 
 const selectedUser = computed(() => users.value.find((user) => user.id === selectedUserId.value));
+const adminQuickStats = computed(() => [
+  { label: "当前角色", value: roleText.value },
+  { label: "用户总数", value: users.value.length },
+  { label: "当前提单", value: selectedBills.value.length },
+]);
 
 const dashboardCharts = computed(() => dashboardSeries.map(createLineChart));
+
+function getIconSvg(name) {
+  return iconMap[name] || "";
+}
 
 async function login() {
   try {

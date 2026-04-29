@@ -103,29 +103,34 @@
           type="button"
           @click="switchView(item.key)"
         >
-          <span class="menu-icon">{{ item.icon }}</span>
+          <span class="menu-icon" aria-hidden="true" v-html="getIconSvg(item.icon)"></span>
           <span v-if="!sidebarCollapsed">{{ item.label }}</span>
         </button>
       </nav>
 
-      <div v-if="!sidebarCollapsed" class="sidebar-status">
-        <span class="status-dot"></span>
-        <p>已通过鉴权</p>
+      <div class="sidebar-footer">
+        <div v-if="!sidebarCollapsed" class="sidebar-status">
+          <span class="status-dot"></span>
+          <p>已通过鉴权</p>
+        </div>
+        <button class="sidebar-exit-button" type="button" @click="logout">
+          {{ sidebarCollapsed ? "⎋" : "退出" }}
+        </button>
       </div>
     </aside>
 
     <main class="workspace">
       <header class="workspace-hero">
-        <div>
+        <div class="hero-copy-block">
           <p class="eyebrow">{{ currentMeta.eyebrow }}</p>
           <h1>{{ currentMeta.title }}</h1>
           <p v-if="currentMeta.description">{{ currentMeta.description }}</p>
-        </div>
-        <div class="hero-actions">
-          <button class="secondary-button" type="button" @click="sidebarCollapsed = !sidebarCollapsed">
-            {{ sidebarCollapsed ? "展开边栏" : "收起边栏" }}
-          </button>
-          <button class="ghost-button" type="button" @click="logout">退出</button>
+          <div class="hero-meta-strip" aria-label="Workspace summary">
+            <span v-for="item in clientQuickStats" :key="item.label" class="hero-meta-pill">
+              <strong>{{ item.value }}</strong>
+              <small>{{ item.label }}</small>
+            </span>
+          </div>
         </div>
       </header>
 
@@ -833,12 +838,25 @@ const prototypeTemplates = [
   { id: "tpl-003", name: "欧线订舱导出模板" },
 ];
 
+const iconMap = Object.freeze({
+  dashboard:
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></g></svg>',
+  files:
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M15 2h-4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V8"/><path d="M16.706 2.706A2.4 2.4 0 0 0 15 2v5a1 1 0 0 0 1 1h5a2.4 2.4 0 0 0-.706-1.706zM5 7a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h8a2 2 0 0 0 1.732-1"/></g></svg>',
+  searchFile:
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><circle cx="11.5" cy="14.5" r="2.5"/><path d="M13.3 16.3L15 18"/></g></svg>',
+  library:
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M5 7a2 2 0 0 0-2 2v11"/><path d="M5.803 18H5a2 2 0 0 0 0 4h9.5a.5.5 0 0 0 .5-.5V21m-6-6V4a2 2 0 0 1 2-2h9.5a.5.5 0 0 1 .5.5v14a.5.5 0 0 1-.5.5H11a2 2 0 0 1 0-4h10"/></g></svg>',
+  output:
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M4.226 20.925A2 2 0 0 0 6 22h12a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v3.127"/><path d="M14 2v5a1 1 0 0 0 1 1h5M5 11l-3 3m3 3l-3-3h10"/></g></svg>',
+});
+
 const navItems = [
-  { key: "overview", label: "用户总览", icon: "◎" },
-  { key: "bills", label: "已存提单数据", icon: "▤" },
-  { key: "extract", label: "提单模版提取", icon: "◇" },
-  { key: "templates", label: "模板管理", icon: "▧" },
-  { key: "export", label: "按模版导出", icon: "↗" },
+  { key: "overview", label: "用户总览", icon: "dashboard" },
+  { key: "bills", label: "已存提单数据", icon: "files" },
+  { key: "extract", label: "提单模版提取", icon: "searchFile" },
+  { key: "templates", label: "模板管理", icon: "library" },
+  { key: "export", label: "按模版导出", icon: "output" },
 ];
 
 const metaMap = {
@@ -880,6 +898,11 @@ const templateStatusUpdating = ref(new Set());
 
 const currentMeta = computed(() => metaMap[currentView.value]);
 const avatarText = computed(() => (session.nickname || session.username || "U").slice(0, 2).toUpperCase());
+const clientQuickStats = computed(() => [
+  { label: "提单记录", value: savedBills.value.length },
+  { label: "模板库", value: managedTemplates.value.length },
+  { label: "导出队列", value: exportJobs.value.length },
+]);
 const billTotalPages = computed(() => Math.max(1, Math.ceil(billPage.total / billPage.size)));
 const templateTotalPages = computed(() => Math.max(1, Math.ceil(templatePage.total / templatePage.size)));
 const currentExtractFileKey = computed(() => (extractFile.value ? buildFileKey(extractFile.value) : ""));
@@ -897,6 +920,10 @@ const extractButtonText = computed(() => {
 const allCurrentBillsSelected = computed(
   () => savedBills.value.length > 0 && savedBills.value.every((bill) => selectedBillIds.value.includes(bill.id))
 );
+
+function getIconSvg(name) {
+  return iconMap[name] || "";
+}
 
 async function login() {
   loginError.value = validateLoginForm();
