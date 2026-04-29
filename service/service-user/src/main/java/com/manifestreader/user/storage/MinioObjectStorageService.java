@@ -12,12 +12,14 @@ import io.minio.errors.MinioException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 @Service
+@ConditionalOnProperty(prefix = "manifest.storage", name = "type", havingValue = "minio", matchIfMissing = true)
 public class MinioObjectStorageService implements ObjectStorageService {
 
     private static final Logger log = LoggerFactory.getLogger(MinioObjectStorageService.class);
