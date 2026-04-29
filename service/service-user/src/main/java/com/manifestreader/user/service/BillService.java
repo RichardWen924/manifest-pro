@@ -8,6 +8,8 @@ import com.manifestreader.user.model.dto.BillParseRequest;
 import com.manifestreader.user.model.dto.BillUpdateRequest;
 import com.manifestreader.user.model.dto.ExtractedBillSaveRequest;
 import com.manifestreader.user.model.vo.BillExtractResultVO;
+import com.manifestreader.user.model.vo.BillExtractTaskSubmitVO;
+import com.manifestreader.user.model.vo.BillExtractTaskVO;
 import com.manifestreader.user.model.vo.BillDetailVO;
 import com.manifestreader.user.model.vo.BillVO;
 import org.springframework.web.multipart.MultipartFile;
@@ -23,6 +25,10 @@ public interface BillService {
     BillVO saveExtractedFields(ExtractedBillSaveRequest request);
 
     BillExtractResultVO extractBill(MultipartFile file);
+
+    BillExtractTaskSubmitVO submitExtractTask(MultipartFile file);
+
+    BillExtractTaskVO getExtractTask(String taskNo);
 
     BillVO saveExtractedResult(BillExtractSaveRequest request);
 

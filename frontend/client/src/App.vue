@@ -637,15 +637,7 @@
                 <small>{{ job.status }}</small>
               </div>
               <div v-if="job.downloadUrl" class="job-actions">
-                <a class="download-template-link" :href="job.downloadUrl" download>下载导出文件</a>
-                <button
-                  class="secondary-button"
-                  type="button"
-                  :disabled="job.savingBusiness || job.businessSaved"
-                  @click="saveExportJobToBusiness(job)"
-                >
-                  {{ job.businessSaved ? "已保存业务数据" : job.savingBusiness ? "正在保存" : "保存至业务数据" }}
-                </button>
+                <button class="secondary-button" type="button" @click="openExportDialog(job)">查看并保存</button>
               </div>
               <details v-if="job.fields?.length" class="export-field-preview">
                 <summary>查看 Dify 提取字段 {{ job.fields.length }}</summary>
@@ -658,6 +650,110 @@
                 缺失字段：{{ job.missing.join("、") }}
               </div>
             </div>
+          </div>
+        </article>
+      </section>
+
+      <section v-if="exportDialogOpen && selectedExportJob" class="extract-dialog-backdrop">
+        <article class="extract-dialog">
+          <header class="extract-dialog-head">
+            <div>
+              <p class="eyebrow">Template Export</p>
+              <h2>确认导出文件</h2>
+              <span>{{ selectedExportJob.file }}</span>
+            </div>
+            <button class="mini-button" type="button" @click="closeExportDialog">关闭</button>
+          </header>
+
+          <section v-if="exportSaveFeedback.type" class="save-result-panel" :class="exportSaveFeedback.type">
+            <div class="save-result-mark">
+              <svg v-if="exportSaveFeedback.type === 'success'" viewBox="0 0 64 64" aria-hidden="true">
+                <circle cx="32" cy="32" r="28"></circle>
+                <path d="M19 33.5 28 42 46 23"></path>
+              </svg>
+              <svg v-else viewBox="0 0 64 64" aria-hidden="true">
+                <circle cx="32" cy="32" r="28"></circle>
+                <path d="M23 23 41 41"></path>
+                <path d="M41 23 23 41"></path>
+              </svg>
+            </div>
+            <p class="eyebrow">{{ exportSaveFeedback.type === "success" ? "Saved" : "Notice" }}</p>
+            <h3>{{ exportSaveFeedback.title }}</h3>
+            <p>{{ exportSaveFeedback.message }}</p>
+            <button class="secondary-button" type="button" @click="resetExportSaveFeedback">继续查看</button>
+          </section>
+
+          <div class="extract-workbench">
+            <section class="file-preview-pane">
+              <div class="source-preview-frame" :class="selectedExportJob.previewType">
+                <iframe
+                  v-if="selectedExportJob.previewType === 'pdf'"
+                  :src="selectedExportJob.downloadUrl"
+                  title="导出文件预览"
+                ></iframe>
+                <object
+                  v-else-if="selectedExportJob.previewType === 'word'"
+                  :data="selectedExportJob.downloadUrl"
+                  :type="selectedExportJob.previewMimeType"
+                >
+                  <div class="word-preview-fallback">
+                    <strong>DOCX 导出文件</strong>
+                    <p>浏览器可能无法完整预览 Word 版式，可保存到本地后打开核对。</p>
+                    <a class="download-template-link" :href="selectedExportJob.downloadUrl" :download="selectedExportJob.file">
+                      保存到本地
+                    </a>
+                  </div>
+                </object>
+                <div v-else class="word-preview-fallback">
+                  <strong>{{ selectedExportJob.outputFormat || "导出文件" }}</strong>
+                  <p>当前格式无法直接内嵌预览，可保存到本地查看。</p>
+                  <a class="download-template-link" :href="selectedExportJob.downloadUrl" :download="selectedExportJob.file">
+                    保存到本地
+                  </a>
+                </div>
+              </div>
+            </section>
+
+            <section class="mapping-editor-pane">
+              <div class="panel-title compact">
+                <h2>字段对应</h2>
+              </div>
+
+              <div v-if="selectedExportJob.missing?.length" class="form-error">
+                缺失占位符：{{ selectedExportJob.missing.join("、") }}
+              </div>
+
+              <div class="mapping-editor-list export-field-list">
+                <article v-for="(field, index) in selectedExportJob.fields" :key="field.key" class="mapping-editor-row">
+                  <div class="mapping-row-head">
+                    <strong>#{{ index + 1 }} {{ field.key }}</strong>
+                    <span class="field-status-pill">已对应</span>
+                  </div>
+                  <label>
+                    提取字段
+                    <input :value="field.key" readonly />
+                  </label>
+                  <label>
+                    填充值
+                    <textarea :value="field.value" rows="3" readonly></textarea>
+                  </label>
+                </article>
+              </div>
+
+              <details v-if="selectedExportJob.rawText" class="raw-dify-preview">
+                <summary>查看原始 Dify JSON/Text</summary>
+                <pre>{{ selectedExportJob.rawText }}</pre>
+              </details>
+
+              <div class="extract-save-actions export-dialog-actions">
+                <button class="primary-button" type="button" @click="saveExportToLocal(selectedExportJob)">
+                  保存到本地
+                </button>
+                <button class="secondary-button" type="button" @click="confirmExportSavedToMinio(selectedExportJob)">
+                  保存到 MinIO
+                </button>
+              </div>
+            </section>
           </div>
         </article>
       </section>
@@ -895,6 +991,13 @@ const extractedTemplates = ref([]);
 const managedTemplates = ref([]);
 const exportJobs = ref([]);
 const templateStatusUpdating = ref(new Set());
+const exportDialogOpen = ref(false);
+const selectedExportJobId = ref("");
+const exportSaveFeedback = reactive({
+  type: "",
+  title: "",
+  message: "",
+});
 
 const currentMeta = computed(() => metaMap[currentView.value]);
 const avatarText = computed(() => (session.nickname || session.username || "U").slice(0, 2).toUpperCase());
@@ -908,6 +1011,7 @@ const templateTotalPages = computed(() => Math.max(1, Math.ceil(templatePage.tot
 const currentExtractFileKey = computed(() => (extractFile.value ? buildFileKey(extractFile.value) : ""));
 const isCurrentExtractFileDone = computed(() => Boolean(currentExtractFileKey.value && extractedFileKeys.value.has(currentExtractFileKey.value)));
 const selectedExtractResult = computed(() => extractedTemplates.value.find((item) => item.id === selectedExtractId.value));
+const selectedExportJob = computed(() => exportJobs.value.find((item) => item.id === selectedExportJobId.value));
 const extractButtonText = computed(() => {
   if (extractingTemplate.value) {
     return "正在提取，请稍候";
@@ -1573,19 +1677,32 @@ async function createExportJob() {
       outputFormat: exportForm.outputFormat,
       file: exportFile.value,
     });
+    const completedJob = {
+      id: pendingId,
+      template: result?.templateName || template?.name || "未命名模板",
+      file: result?.outputFileName || exportFile.value.name,
+      status: result?.message || "导出完成",
+      fields: fieldsToRows(result?.extractedFields),
+      missing: result?.missingPlaceholders || [],
+      downloadUrl: result?.downloadUrl ? buildUserApiUrl(result.downloadUrl.replace(/^\/user/, "")) : "",
+      extractedFields: result?.extractedFields || {},
+      sourceFileName: exportFile.value.name,
+      templateId: exportForm.templateId,
+      exportId: result?.exportId || "",
+      outputFormat: result?.outputFormat || exportForm.outputFormat,
+      rawText: result?.rawText || "",
+      previewType: getExportPreviewType(result?.outputFormat || exportForm.outputFormat, result?.outputFileName || ""),
+      previewMimeType: getExportPreviewMimeType(result?.outputFormat || exportForm.outputFormat),
+      savingBusiness: false,
+      businessSaved: false,
+      minioSaved: true,
+    };
     exportJobs.value = exportJobs.value.map((job) =>
-      job.id === pendingId
-        ? {
-            ...job,
-            status: result?.message || "导出完成",
-            file: result?.outputFileName || job.file,
-            fields: fieldsToRows(result?.extractedFields),
-            missing: result?.missingPlaceholders || [],
-            downloadUrl: result?.downloadUrl ? buildUserApiUrl(result.downloadUrl.replace(/^\/user/, "")) : "",
-            extractedFields: result?.extractedFields || {},
-          }
-        : job,
+      job.id === pendingId ? completedJob : job,
     );
+    selectedExportJobId.value = pendingId;
+    exportDialogOpen.value = true;
+    resetExportSaveFeedback();
     notify("导出完成", result?.message || "已生成可下载的标准文档。", "backend");
   } catch (error) {
     exportJobs.value = exportJobs.value.map((job) =>
@@ -1604,6 +1721,77 @@ function fieldsToRows(fields) {
     key,
     value: value == null ? "空白" : String(value),
   }));
+}
+
+function getExportPreviewType(outputFormat, fileName = "") {
+  const normalized = String(outputFormat || "").toUpperCase();
+  if (normalized === "PDF" || fileName.toLowerCase().endsWith(".pdf")) {
+    return "pdf";
+  }
+  if (normalized === "DOCX" || fileName.toLowerCase().endsWith(".docx")) {
+    return "word";
+  }
+  return "unsupported";
+}
+
+function getExportPreviewMimeType(outputFormat) {
+  return String(outputFormat || "").toUpperCase() === "PDF"
+    ? "application/pdf"
+    : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+}
+
+function openExportDialog(job) {
+  selectedExportJobId.value = job.id;
+  exportDialogOpen.value = true;
+  resetExportSaveFeedback();
+}
+
+function closeExportDialog() {
+  exportDialogOpen.value = false;
+  resetExportSaveFeedback();
+}
+
+function saveExportToLocal(job) {
+  if (!job?.downloadUrl) {
+    setExportSaveFeedback("error", "暂无文件", "导出文件不存在，请重新创建导出任务。");
+    return;
+  }
+  const link = document.createElement("a");
+  link.href = job.downloadUrl;
+  link.download = job.file || "template-export.docx";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setExportSaveFeedback("success", "已开始保存", "文件已交给浏览器下载，稍后可在本地下载目录查看。");
+}
+
+function confirmExportSavedToMinio(job) {
+  if (!job?.exportId) {
+    setExportSaveFeedback("error", "保存状态未知", "当前导出结果缺少 exportId，请重新创建导出任务。");
+    return;
+  }
+  exportJobs.value = exportJobs.value.map((item) =>
+    item.id === job.id
+      ? {
+          ...item,
+          minioSaved: true,
+          status: "导出文件已保存到 MinIO",
+        }
+      : item,
+  );
+  setExportSaveFeedback("success", "已保存到 MinIO", "后端导出时已将文件资产写入 MinIO，可在导出队列继续下载。");
+}
+
+function setExportSaveFeedback(type, title, message) {
+  exportSaveFeedback.type = type;
+  exportSaveFeedback.title = title;
+  exportSaveFeedback.message = message;
+}
+
+function resetExportSaveFeedback() {
+  exportSaveFeedback.type = "";
+  exportSaveFeedback.title = "";
+  exportSaveFeedback.message = "";
 }
 
 async function saveExportJobToBusiness(job) {
