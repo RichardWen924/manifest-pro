@@ -10,6 +10,8 @@ import com.manifestreader.user.model.dto.BillUpdateRequest;
 import com.manifestreader.user.model.dto.ExtractedBillSaveRequest;
 import com.manifestreader.user.model.vo.BillDetailVO;
 import com.manifestreader.user.model.vo.BillExtractResultVO;
+import com.manifestreader.user.model.vo.BillExtractTaskSubmitVO;
+import com.manifestreader.user.model.vo.BillExtractTaskVO;
 import com.manifestreader.user.model.vo.BillVO;
 import com.manifestreader.user.service.BillService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -66,6 +68,18 @@ public class BillController {
     @PostMapping(value = "/extract", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public R<BillExtractResultVO> extract(@RequestPart("file") MultipartFile file) {
         return R.ok(billService.extractBill(file));
+    }
+
+    @Operation(summary = "提交异步提单解析任务")
+    @PostMapping(value = "/extract/tasks", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public R<BillExtractTaskSubmitVO> submitExtractTask(@RequestPart("file") MultipartFile file) {
+        return R.ok(billService.submitExtractTask(file));
+    }
+
+    @Operation(summary = "查询异步提单解析任务")
+    @GetMapping("/extract/tasks/{taskNo}")
+    public R<BillExtractTaskVO> getExtractTask(@PathVariable String taskNo) {
+        return R.ok(billService.getExtractTask(taskNo));
     }
 
     @Operation(summary = "确认保存提单提取结果")

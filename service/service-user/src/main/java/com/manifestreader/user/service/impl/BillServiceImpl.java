@@ -25,8 +25,11 @@ import com.manifestreader.user.model.dto.BillUpdateRequest;
 import com.manifestreader.user.model.dto.ExtractedBillSaveRequest;
 import com.manifestreader.user.model.vo.BillExtractFieldVO;
 import com.manifestreader.user.model.vo.BillExtractResultVO;
+import com.manifestreader.user.model.vo.BillExtractTaskSubmitVO;
+import com.manifestreader.user.model.vo.BillExtractTaskVO;
 import com.manifestreader.user.model.vo.BillDetailVO;
 import com.manifestreader.user.model.vo.BillVO;
+import com.manifestreader.user.service.BillParseTaskService;
 import com.manifestreader.user.service.BillService;
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -60,6 +63,7 @@ public class BillServiceImpl implements BillService {
     private final UserIssueInfoMapper issueInfoMapper;
     private final DifyWorkflowClient difyWorkflowClient;
     private final DifyTemplateExportParser exportParser;
+    private final BillParseTaskService billParseTaskService;
     private final ConcurrentMap<String, BillExtractResultVO> billExtractCache = new ConcurrentHashMap<>();
 
     public BillServiceImpl(
@@ -69,7 +73,8 @@ public class BillServiceImpl implements BillService {
             UserChargeMapper chargeMapper,
             UserIssueInfoMapper issueInfoMapper,
             DifyWorkflowClient difyWorkflowClient,
-            DifyTemplateExportParser exportParser
+            DifyTemplateExportParser exportParser,
+            BillParseTaskService billParseTaskService
     ) {
         this.billMapper = billMapper;
         this.cargoItemMapper = cargoItemMapper;
@@ -78,6 +83,7 @@ public class BillServiceImpl implements BillService {
         this.issueInfoMapper = issueInfoMapper;
         this.difyWorkflowClient = difyWorkflowClient;
         this.exportParser = exportParser;
+        this.billParseTaskService = billParseTaskService;
     }
 
     @Override
@@ -222,15 +228,30 @@ public class BillServiceImpl implements BillService {
     }
 
     @Override
+    public BillExtractTaskSubmitVO submitExtractTask(MultipartFile file) {
+        return billParseTaskService.submitExtractTask(file);
+    }
+
+    @Override
+    public BillExtractTaskVO getExtractTask(String taskNo) {
+        return billParseTaskService.getTask(taskNo);
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public BillVO saveExtractedResult(BillExtractSaveRequest request) {
         Map<String, Object> fields = request.fields();
         if (fields == null || fields.isEmpty()) {
             BillExtractResultVO cached = billExtractCache.get(request.extractId());
-            if (cached == null || cached.fields() == null || cached.fields().isEmpty()) {
-                throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "提单提取结果不存在或已过期，请重新上传提取");
+            if (cached != null && cached.fields() != null && !cached.fields().isEmpty()) {
+                fields = cached.fields();
+            } else {
+                BillExtractResultVO asyncResult = billParseTaskService.resolveResult(request.extractId());
+                if (asyncResult == null || asyncResult.fields() == null || asyncResult.fields().isEmpty()) {
+                    throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "提单提取结果不存在或已过期，请重新上传提取");
+                }
+                fields = asyncResult.fields();
             }
-            fields = cached.fields();
         }
         return saveExtractedFields(new ExtractedBillSaveRequest(
                 request.templateId(),

@@ -1654,6 +1654,34 @@ button:disabled {
   margin-top: 16px;
 }
 
+.export-field-list .mapping-editor-row {
+  background: #ffffff;
+}
+
+.export-field-list input,
+.export-field-list textarea {
+  color: var(--ink);
+  cursor: default;
+}
+
+.field-status-pill {
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: rgba(52, 199, 89, 0.12);
+  color: #18803a;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.export-dialog-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  border-top: 1px solid rgba(29, 29, 31, 0.08);
+  padding-top: 14px;
+  background: linear-gradient(to top, #ffffff 78%, rgba(255, 255, 255, 0));
+}
+
 .template-toolbar {
   grid-template-columns: minmax(220px, 1fr) minmax(150px, 0.28fr) auto;
 }

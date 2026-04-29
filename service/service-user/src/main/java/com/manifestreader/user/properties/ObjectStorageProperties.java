@@ -10,6 +10,7 @@ public class ObjectStorageProperties {
     private String accessKey = "minioadmin";
     private String secretKey = "minioadmin";
     private String bucket = "manifest-reader";
+    private String localBasePath = System.getProperty("java.io.tmpdir") + "/manifest-reader-storage";
 
     public String getType() {
         return type;
@@ -49,5 +50,13 @@ public class ObjectStorageProperties {
 
     public void setBucket(String bucket) {
         this.bucket = bucket;
+    }
+
+    public String getLocalBasePath() {
+        return localBasePath;
+    }
+
+    public void setLocalBasePath(String localBasePath) {
+        this.localBasePath = localBasePath;
     }
 }

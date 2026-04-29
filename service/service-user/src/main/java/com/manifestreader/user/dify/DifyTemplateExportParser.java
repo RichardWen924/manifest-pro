@@ -51,9 +51,6 @@ public class DifyTemplateExportParser {
         if (root == null || root.isMissingNode() || root.isNull()) {
             return null;
         }
-        if (looksLikeFieldObject(root)) {
-            return root;
-        }
         String text = readFirstText(root, "/text", "/data/outputs/text", "/outputs/text", "/answer");
         if (StringUtils.hasText(text)) {
             JsonNode parsedText = objectMapper.readTree(stripMarkdownFence(text));
@@ -87,6 +84,9 @@ public class DifyTemplateExportParser {
                 }
             }
         }
+        if (looksLikeFieldObject(root)) {
+            return root;
+        }
         return null;
     }
 
@@ -94,15 +94,33 @@ public class DifyTemplateExportParser {
         if (node == null || !node.isObject() || node.has("mappings") || node.has("fields")) {
             return false;
         }
+        if (node.has("task_id") || node.has("workflow_run_id") || node.has("data") || node.has("outputs")) {
+            return false;
+        }
         int scalarCount = 0;
+        boolean hasBillField = false;
         Iterator<Map.Entry<String, JsonNode>> iterator = node.fields();
         while (iterator.hasNext()) {
             Map.Entry<String, JsonNode> entry = iterator.next();
             if (entry.getKey().contains("_") && !entry.getValue().isObject() && !entry.getValue().isArray()) {
                 scalarCount++;
             }
+            if (isBillFieldKey(entry.getKey())) {
+                hasBillField = true;
+            }
         }
-        return scalarCount > 0;
+        return hasBillField && scalarCount > 0;
+    }
+
+    private boolean isBillFieldKey(String key) {
+        return switch (key) {
+            case "bl_no", "booking_no", "doc_no", "serial_no", "shipper", "consignee", "notify_party",
+                    "delivery_agent", "carrier_agent", "vessel_voyage", "port_of_loading",
+                    "port_of_discharge", "place_of_delivery", "container_no", "seal_no",
+                    "goods_description", "package_quantity", "gross_weight_kgs", "measurement_cbm",
+                    "freight_term", "payable_at" -> true;
+            default -> false;
+        };
     }
 
     private String readFirstText(JsonNode root, String... pointers) {
