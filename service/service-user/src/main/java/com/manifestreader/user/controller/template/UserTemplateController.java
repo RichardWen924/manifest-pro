@@ -8,14 +8,22 @@ import com.manifestreader.user.model.dto.TemplateStatusUpdateRequest;
 import com.manifestreader.user.model.vo.BlankTemplateFile;
 import com.manifestreader.user.model.vo.ExportedTemplateFile;
 import com.manifestreader.user.model.vo.TemplateExtractResultVO;
+import com.manifestreader.user.model.vo.TemplateExtractTaskSubmitVO;
+import com.manifestreader.user.model.vo.TemplateExtractTaskVO;
 import com.manifestreader.user.model.vo.TemplateExtractSaveResultVO;
 import com.manifestreader.user.model.vo.TemplateExportResultVO;
+import com.manifestreader.user.model.vo.TemplateExportTaskSubmitVO;
+import com.manifestreader.user.model.vo.TemplateExportTaskVO;
 import com.manifestreader.user.model.vo.TemplateManageVO;
 import com.manifestreader.user.model.vo.TemplateOptionVO;
+import com.manifestreader.user.service.TemplateExtractTaskService;
+import com.manifestreader.user.service.TemplateExportTaskService;
 import com.manifestreader.user.service.UserTemplateService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
@@ -40,9 +48,17 @@ import org.springframework.web.multipart.MultipartFile;
 public class UserTemplateController {
 
     private final UserTemplateService templateService;
+    private final TemplateExtractTaskService templateExtractTaskService;
+    private final TemplateExportTaskService templateExportTaskService;
 
-    public UserTemplateController(UserTemplateService templateService) {
+    public UserTemplateController(
+            UserTemplateService templateService,
+            TemplateExtractTaskService templateExtractTaskService,
+            TemplateExportTaskService templateExportTaskService
+    ) {
         this.templateService = templateService;
+        this.templateExtractTaskService = templateExtractTaskService;
+        this.templateExportTaskService = templateExportTaskService;
     }
 
     @Operation(summary = "模板分页")
@@ -95,6 +111,18 @@ public class UserTemplateController {
         return R.ok(templateService.extractTemplate(file));
     }
 
+    @Operation(summary = "异步提交模板提取任务")
+    @PostMapping(value = "/extract/tasks", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public R<TemplateExtractTaskSubmitVO> submitExtractTask(@RequestPart("file") MultipartFile file) {
+        return R.ok(templateExtractTaskService.submitTask(file));
+    }
+
+    @Operation(summary = "查询模板提取任务状态")
+    @GetMapping("/extract/tasks/{taskNo}")
+    public R<TemplateExtractTaskVO> extractTaskDetail(@PathVariable String taskNo) {
+        return R.ok(templateExtractTaskService.getTask(taskNo));
+    }
+
     @Operation(summary = "确认保存模板配置")
     @PostMapping("/extract/save")
     public R<TemplateExtractSaveResultVO> saveGeneratedTemplate(@Valid @RequestBody TemplateExtractSaveRequest request) {
@@ -107,7 +135,17 @@ public class UserTemplateController {
         BlankTemplateFile file = templateService.getBlankTemplate(extractId);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + file.fileName() + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition("attachment", file.fileName()))
+                .body(new FileSystemResource(file.path()));
+    }
+
+    @Operation(summary = "下载异步提取生成的空白 DOCX 模板")
+    @GetMapping("/extract/tasks/{taskNo}/blank-template")
+    public ResponseEntity<Resource> downloadAsyncBlankTemplate(@PathVariable String taskNo) {
+        BlankTemplateFile file = templateExtractTaskService.getBlankTemplate(taskNo);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition("attachment", file.fileName()))
                 .body(new FileSystemResource(file.path()));
     }
 
@@ -117,7 +155,17 @@ public class UserTemplateController {
         BlankTemplateFile file = templateService.getBlankTemplatePreview(extractId);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(file.previewContentType()))
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + file.previewFileName() + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition("inline", file.previewFileName()))
+                .body(new FileSystemResource(file.previewPath()));
+    }
+
+    @Operation(summary = "预览异步提取生成的模板")
+    @GetMapping("/extract/tasks/{taskNo}/preview")
+    public ResponseEntity<Resource> previewAsyncBlankTemplate(@PathVariable String taskNo) {
+        BlankTemplateFile file = templateExtractTaskService.getBlankTemplatePreview(taskNo);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(file.previewContentType()))
+                .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition("inline", file.previewFileName()))
                 .body(new FileSystemResource(file.previewPath()));
     }
 
@@ -131,13 +179,44 @@ public class UserTemplateController {
         return R.ok(templateService.exportWithTemplate(templateId, outputFormat, file));
     }
 
+    @Operation(summary = "异步提交模板导出任务")
+    @PostMapping(value = "/export/tasks", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public R<TemplateExportTaskSubmitVO> submitExportTask(
+            @RequestParam("templateId") Long templateId,
+            @RequestParam(value = "outputFormat", defaultValue = "DOCX") String outputFormat,
+            @RequestPart("file") MultipartFile file
+    ) {
+        return R.ok(templateExportTaskService.submitTask(templateId, outputFormat, file));
+    }
+
+    @Operation(summary = "查询模板导出任务状态")
+    @GetMapping("/export/tasks/{taskNo}")
+    public R<TemplateExportTaskVO> exportTaskDetail(@PathVariable String taskNo) {
+        return R.ok(templateExportTaskService.getTask(taskNo));
+    }
+
+    @Operation(summary = "下载异步模板导出文件")
+    @GetMapping("/export/tasks/{taskNo}/download")
+    public ResponseEntity<Resource> downloadExportTaskFile(@PathVariable String taskNo) {
+        ExportedTemplateFile file = templateExportTaskService.getExportedFile(taskNo);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(file.contentType()))
+                .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition("attachment", file.fileName()))
+                .body(new FileSystemResource(file.path()));
+    }
+
     @Operation(summary = "下载按模板导出的文件")
     @GetMapping("/export/{exportId}/download")
     public ResponseEntity<Resource> downloadExportedTemplate(@PathVariable String exportId) {
         ExportedTemplateFile file = templateService.getExportedTemplate(exportId);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(file.contentType()))
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + file.fileName() + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition("attachment", file.fileName()))
                 .body(new FileSystemResource(file.path()));
+    }
+
+    private String contentDisposition(String dispositionType, String fileName) {
+        String encoded = URLEncoder.encode(fileName, StandardCharsets.UTF_8).replace("+", "%20");
+        return dispositionType + "; filename*=UTF-8''" + encoded;
     }
 }

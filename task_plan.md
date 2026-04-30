@@ -4,7 +4,7 @@
 为 `manifestReader` 制定一份围绕主业务链路的消息驱动改造计划，使项目在保留航运单证业务连续性的前提下，引入 `Redis`、`RabbitMQ`、`Elasticsearch`、`Kibana` 和高并发设计能力。
 
 ## Current Phase
-Phase 5
+Phase 7
 
 ## Phases
 ### Phase 1: Requirements & Discovery
@@ -52,8 +52,9 @@ Phase 5
 | MQ 优先选 RabbitMQ | 足够支撑异步解耦、削峰填谷、重试和死信，学习与实现成本更适中 |
 | Redis 优先承担缓存、幂等、分布式锁、任务状态、限流职责 | 与高并发设计直接相关，且最容易形成可讲的面试亮点 |
 | ES 同时服务业务搜索和日志分析 | 避免“只上日志栈”，让技术引入更有业务价值 |
-| 第一阶段先改造提单异步解析，不强行同时动模板导出 | 可以最小成本跑通主业务消息驱动链路，并保留现有同步接口兼容 |
+| 第一阶段先改造提单异步解析，再沿同一任务骨架扩展模板导出与模板提取 | 可以复用任务中心、MQ、对象存储与状态流转能力，逐步减少同步重逻辑 |
 | 连调测试先采用“真实 HTTP + MySQL + Redis + Spring 消费链路”，暂不强绑外部 Rabbit 容器 | 当前环境下 Rabbit 镜像首次拉取不稳定，但主业务异步编排已经可以通过测试注入方式验证完整链路 |
+| 本地 RabbitMQ 优先用 Docker Compose 部署 `rabbitmq:3.13-management` | 部署与联调门槛低，便于展示队列、消费者和堆积情况 |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
@@ -65,6 +66,7 @@ Phase 5
 | Testcontainers 集成测试首次拉取 RabbitMQ 镜像时遇到 Docker Registry `EOF` | 1 | 调整为更轻量的本地连调路径，保留 MySQL/Redis 容器并用测试注入替代外部 Rabbit 投递 |
 
 ## Notes
-- 当前已完成第一阶段代码落地：提单异步解析任务、RabbitMQ 发布消费、Redis 任务缓存、任务查询接口。
-- 当前已完成单元测试与连调级测试验证。
-- 下一轮可继续沿同一骨架扩展模板导出异步化、ES 检索同步和任务监控面板。
+- 当前已完成 RabbitMQ 本地部署基建，支持开发环境快速启停与管理台访问。
+- 当前已完成三条消息驱动链路：提单异步解析、模板异步导出、模板异步提取。
+- 模板提取已支持从异步任务结果下载空白模板、预览模板，并直接保存为正式模板定义。
+- 下一轮可继续进入服务拆分阶段，将 LLM 任务中心独立为微服务，并用 Feign 对接 `service-user/service-admin`。

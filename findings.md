@@ -11,6 +11,7 @@
 - 已有业务能力包括 JWT 鉴权、MinIO 文件存储、Dify 工作流调用、提单与模板相关实体模型。
 - 当前更偏“同步业务服务 + 局部缓存/内存状态”，尚未形成统一任务中心和消息驱动链路。
 - `service-user` 中存在文件上传、提单抽取、模板导出等天然适合异步化的高耗时场景。
+- 模板提取链路原先依赖 JVM 内存中的 `extractResultCache` / `blankTemplateCache`，在多实例或重启场景下无法稳定支撑异步闭环。
 - 项目已接入 Redis 依赖与基础配置，但尚未把 Redis 用作核心架构能力。
 - 仓库中未见测试代码，说明后续实施要把验证方案显式纳入规划。
 - 第一阶段最适合落地的改造点是 `service-user` 的提单解析链路，因为它本身已经依赖 Dify 和文件上传，天然具备异步化价值。
@@ -30,6 +31,8 @@
 | 发布链路失败时即时将任务标记为 `FAILED` | 避免保留“永远 PENDING”的脏任务状态 |
 | 消费开始时立即落 `RUNNING` 状态并缓存 | 让轮询端看到更真实的中间状态，便于后续监控与补偿 |
 | 连调验证使用 MySQL/Redis Testcontainers + MockMvc + Spring 消费直连 | 在当前环境里比强依赖外部 Rabbit 镜像更稳定，仍能覆盖 HTTP/DB/缓存/消费主链路 |
+| 模板提取和模板导出都沿用 `bl_parse_task` 统一任务表扩展 `task_type` | 先复用任务中心骨架，降低第二阶段拆服务前的模型迁移成本 |
+| 空白模板、预览文件、导出文件都落成 `file_asset + object storage` | 避免结果只存在内存或本地临时目录，支持异步消费和后续跨服务读取 |
 
 ## Issues Encountered
 | Issue | Resolution |
@@ -39,6 +42,7 @@
 | 项目原有 `bl_parse_task` 只有 SQL 草案，没有 Java 实体/Mapper/服务闭环 | 已补齐实体、Mapper、任务服务、消息发布消费、Redis 缓存和控制器接口 |
 | 模块化 Maven 工程在单模块验证时不会自动带上新依赖模块源码 | 改为 `./mvnw -pl service/service-user -am ...` 联动验证 |
 | RabbitMQ 容器首次镜像拉取受外部 Docker Registry 网络波动影响 | 已保留外部 MQ 代码实现，同时将测试验证改为更稳定的本地连调路径 |
+| 模板提取链路原有保存模板逻辑只认内存缓存中的 `extractId` | 已让保存逻辑支持从异步任务结果回退取数，确保 `taskNo` 也能走完整闭环 |
 
 ## Resources
 - 项目根目录：`/Users/richard/CodeFile/Project/manifestReader`
@@ -52,6 +56,12 @@
   - `/Users/richard/CodeFile/Project/manifestReader/service/service-user/src/main/java/com/manifestreader/user/cache/RedisBillParseTaskCacheService.java`
   - `/Users/richard/CodeFile/Project/manifestReader/zfile/sql/V4__bill_parse_task_async_enhance.sql`
   - `/Users/richard/CodeFile/Project/manifestReader/service/service-user/src/test/java/com/manifestreader/user/integration/BillParseTaskIntegrationTest.java`
+  - `/Users/richard/CodeFile/Project/manifestReader/docker-compose.yml`
+  - `/Users/richard/CodeFile/Project/manifestReader/docs/backend-rabbitmq-local.md`
+  - `/Users/richard/CodeFile/Project/manifestReader/service/service-user/src/main/java/com/manifestreader/user/service/impl/TemplateExportTaskServiceImpl.java`
+  - `/Users/richard/CodeFile/Project/manifestReader/service/service-user/src/main/java/com/manifestreader/user/service/impl/TemplateExtractTaskServiceImpl.java`
+  - `/Users/richard/CodeFile/Project/manifestReader/service/service-user/src/test/java/com/manifestreader/user/service/impl/TemplateExportTaskIntegrationTest.java`
+  - `/Users/richard/CodeFile/Project/manifestReader/service/service-user/src/test/java/com/manifestreader/user/service/impl/TemplateExtractTaskIntegrationTest.java`
 
 ## Visual/Browser Findings
 - 本轮未使用浏览器或图像资料。

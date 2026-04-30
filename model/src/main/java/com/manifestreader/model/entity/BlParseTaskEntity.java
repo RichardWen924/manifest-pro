@@ -13,10 +13,14 @@ public class BlParseTaskEntity {
     private String taskNo;
     private Long companyId;
     private Long sourceFileId;
+    private String taskType;
     private String taskStatus;
     private String engineType;
+    private Long bizId;
+    private String outputFormat;
     private String requestPayload;
     private String resultPayload;
+    private Long resultFileId;
     private String errorMessage;
     private LocalDateTime startedAt;
     private LocalDateTime finishedAt;
@@ -63,6 +67,14 @@ public class BlParseTaskEntity {
         return taskStatus;
     }
 
+    public String getTaskType() {
+        return taskType;
+    }
+
+    public void setTaskType(String taskType) {
+        this.taskType = taskType;
+    }
+
     public void setTaskStatus(String taskStatus) {
         this.taskStatus = taskStatus;
     }
@@ -73,6 +85,22 @@ public class BlParseTaskEntity {
 
     public void setEngineType(String engineType) {
         this.engineType = engineType;
+    }
+
+    public Long getBizId() {
+        return bizId;
+    }
+
+    public void setBizId(Long bizId) {
+        this.bizId = bizId;
+    }
+
+    public String getOutputFormat() {
+        return outputFormat;
+    }
+
+    public void setOutputFormat(String outputFormat) {
+        this.outputFormat = outputFormat;
     }
 
     public String getRequestPayload() {
@@ -89,6 +117,14 @@ public class BlParseTaskEntity {
 
     public void setResultPayload(String resultPayload) {
         this.resultPayload = resultPayload;
+    }
+
+    public Long getResultFileId() {
+        return resultFileId;
+    }
+
+    public void setResultFileId(Long resultFileId) {
+        this.resultFileId = resultFileId;
     }
 
     public String getErrorMessage() {

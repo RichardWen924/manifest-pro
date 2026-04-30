@@ -1,0 +1,91 @@
+<h2>选择这次双端改版的视觉重心</h2>
+<p class="subtitle">三种方案都保持简洁和高效，区别主要在留白、信息分组强度和按钮表现。</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">A. Air Glass</div>
+        <div class="mockup-body">
+          <div style="padding:18px;background:linear-gradient(180deg,#f5f7fb,#eef2f8);border-radius:18px;">
+            <div class="mock-nav" style="background:rgba(255,255,255,.72);border:1px solid rgba(15,23,42,.06);">Logo  Search  Profile</div>
+            <div style="display:grid;grid-template-columns:1.15fr .85fr;gap:14px;margin-top:14px;">
+              <div class="mock-content" style="min-height:140px;background:rgba(255,255,255,.82);border:1px solid rgba(15,23,42,.06);">
+                大留白标题区
+                <div class="placeholder" style="height:56px;margin-top:10px;"></div>
+              </div>
+              <div class="mock-content" style="min-height:140px;background:rgba(255,255,255,.78);border:1px solid rgba(15,23,42,.06);">
+                轻卡片
+                <div class="placeholder" style="height:56px;margin-top:10px;"></div>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:14px;">
+              <button class="mock-button" style="background:#111827;">主按钮</button>
+              <button class="mock-button" style="background:#ffffff;color:#111827;border:1px solid rgba(15,23,42,.08);">次按钮</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. Air Glass</h3>
+      <p>最偏 Apple，留白更大、质感更轻，适合强调高级感，但数据密度会稍低。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">B. Calm Grid</div>
+        <div class="mockup-body">
+          <div style="padding:18px;background:linear-gradient(180deg,#f8fafc,#eef3f9);border-radius:18px;">
+            <div class="mock-nav" style="background:#ffffff;border:1px solid rgba(15,23,42,.08);box-shadow:0 8px 24px rgba(15,23,42,.06);">Logo  Dashboard  Data  Export</div>
+            <div style="display:grid;grid-template-columns:220px 1fr;gap:14px;margin-top:14px;">
+              <div class="mock-sidebar" style="background:#ffffff;border:1px solid rgba(15,23,42,.08);">清晰边栏分组</div>
+              <div style="display:grid;gap:14px;">
+                <div class="mock-content" style="background:#ffffff;border:1px solid rgba(15,23,42,.08);min-height:84px;">标题 + 摘要 + 快捷操作</div>
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+                  <div class="placeholder" style="height:84px;background:#ffffff;border:1px solid rgba(15,23,42,.08);"></div>
+                  <div class="placeholder" style="height:84px;background:#ffffff;border:1px solid rgba(15,23,42,.08);"></div>
+                  <div class="placeholder" style="height:84px;background:#ffffff;border:1px solid rgba(15,23,42,.08);"></div>
+                </div>
+                <div class="mock-content" style="background:#ffffff;border:1px solid rgba(15,23,42,.08);min-height:72px;">表格 / 筛选区域更规整</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. Calm Grid</h3>
+      <p>推荐方案。保留 Apple 的克制感，同时用 Google 式分组提升可读性和操作效率，适合双端统一。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">C. Active Panel</div>
+        <div class="mockup-body">
+          <div style="padding:18px;background:linear-gradient(180deg,#f6f8fb,#e9eef6);border-radius:18px;">
+            <div class="mock-nav" style="background:#ffffff;border:1px solid rgba(37,99,235,.12);">Logo  Tabs  Search  Alerts</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px;">
+              <div class="mock-content" style="background:#ffffff;border:1px solid rgba(37,99,235,.12);min-height:100px;">高对比指标卡</div>
+              <div class="mock-content" style="background:#ffffff;border:1px solid rgba(37,99,235,.12);min-height:100px;">状态标签更强</div>
+              <div class="mock-content" style="background:#ffffff;border:1px solid rgba(37,99,235,.12);min-height:100px;">动作更突出</div>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:14px;">
+              <button class="mock-button" style="background:#2563eb;">新增</button>
+              <button class="mock-button" style="background:#eff6ff;color:#1e40af;border:1px solid rgba(37,99,235,.14);">筛选</button>
+              <button class="mock-button" style="background:#ffffff;color:#0f172a;border:1px solid rgba(15,23,42,.08);">更多</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. Active Panel</h3>
+      <p>更偏 Google，层级和按钮更明显，效率感很强，但高级感会比 B 略少一点。</p>
+    </div>
+  </div>
+</div>

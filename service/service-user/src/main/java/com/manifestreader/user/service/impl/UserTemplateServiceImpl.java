@@ -8,6 +8,7 @@ import com.manifestreader.common.constant.HeaderConstants;
 import com.manifestreader.common.exception.BusinessException;
 import com.manifestreader.common.exception.ErrorCode;
 import com.manifestreader.common.result.PageResult;
+import com.manifestreader.model.entity.BlParseTaskEntity;
 import com.manifestreader.model.entity.FileAssetEntity;
 import com.manifestreader.model.entity.TemplateEntity;
 import com.manifestreader.model.entity.TemplateFieldMappingEntity;
@@ -15,6 +16,7 @@ import com.manifestreader.model.entity.TemplateVersionEntity;
 import com.manifestreader.user.dify.DifyTemplateExportParser;
 import com.manifestreader.user.dify.DifyTemplateMappingParser;
 import com.manifestreader.user.dify.DifyWorkflowClient;
+import com.manifestreader.user.mapper.UserBillParseTaskMapper;
 import com.manifestreader.user.mapper.UserFileAssetMapper;
 import com.manifestreader.user.mapper.UserTemplateFieldMappingMapper;
 import com.manifestreader.user.mapper.UserTemplateMapper;
@@ -44,6 +46,7 @@ import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -72,6 +75,7 @@ public class UserTemplateServiceImpl implements UserTemplateService {
     private final UserTemplateMapper templateMapper;
     private final UserTemplateVersionMapper templateVersionMapper;
     private final UserTemplateFieldMappingMapper fieldMappingMapper;
+    private final UserBillParseTaskMapper taskMapper;
     private final UserFileAssetMapper fileAssetMapper;
     private final ObjectStorageService objectStorageService;
     private final ConcurrentMap<String, TemplateExtractResultVO> extractResultCache = new ConcurrentHashMap<>();
@@ -86,6 +90,7 @@ public class UserTemplateServiceImpl implements UserTemplateService {
             UserTemplateMapper templateMapper,
             UserTemplateVersionMapper templateVersionMapper,
             UserTemplateFieldMappingMapper fieldMappingMapper,
+            UserBillParseTaskMapper taskMapper,
             UserFileAssetMapper fileAssetMapper,
             ObjectStorageService objectStorageService
     ) {
@@ -96,6 +101,7 @@ public class UserTemplateServiceImpl implements UserTemplateService {
         this.templateMapper = templateMapper;
         this.templateVersionMapper = templateVersionMapper;
         this.fieldMappingMapper = fieldMappingMapper;
+        this.taskMapper = taskMapper;
         this.fileAssetMapper = fileAssetMapper;
         this.objectStorageService = objectStorageService;
     }
@@ -194,36 +200,60 @@ public class UserTemplateServiceImpl implements UserTemplateService {
                 log.info("Template extraction cache hit after lock, fileName={}, hash={}", file.getOriginalFilename(), fileHash);
                 return cached;
             }
-            TemplateExtractResultVO result = doExtractTemplate(file);
+            TemplateExtractExecutionResult executionResult = executeTemplateExtraction(
+                    file,
+                    currentCompanyId(),
+                    currentUserId(),
+                    fileHash,
+                    "/user/templates/extract/" + fileHash + "/blank-template",
+                    "/user/templates/extract/" + fileHash + "/preview"
+            );
+            TemplateExtractResultVO result = executionResult.result();
             extractResultCache.put(fileHash, result);
             return result;
         }
     }
 
-    private TemplateExtractResultVO doExtractTemplate(MultipartFile file) {
+    TemplateExtractExecutionResult executeTemplateExtraction(
+            MultipartFile file,
+            Long companyId,
+            Long userId,
+            String extractId,
+            String blankTemplateDownloadUrl,
+            String previewUrl
+    ) {
         log.info("Template extraction calling Dify, fileName={}, size={}", file.getOriginalFilename(), file.getSize());
         String difyResponse = difyWorkflowClient.runTemplateExtraction(file);
         DifyTemplateMappingParser.ParsedMappings parsed = mappingParser.parse(difyResponse);
         String fileName = StringUtils.hasText(file.getOriginalFilename()) ? file.getOriginalFilename() : "template-file";
-        String extractId = hashFile(file);
-        BlankTemplateResult blankTemplate = generateBlankTemplateIfSupported(extractId, fileName, file, parsed.mappings());
-        return new TemplateExtractResultVO(
-                extractId,
+        String resolvedExtractId = StringUtils.hasText(extractId) ? extractId : hashFile(file);
+        BlankTemplateResult blankTemplate = generateBlankTemplateIfSupported(resolvedExtractId, fileName, file, parsed.mappings());
+        BlankTemplateArtifacts artifacts = persistBlankTemplateArtifacts(resolvedExtractId, fileName, companyId, userId);
+        String downloadUrl = artifacts.blankTemplateFileId() == null ? null : blankTemplateDownloadUrl;
+        String resolvedPreviewUrl = artifacts.previewFileId() == null ? null : previewUrl;
+        String previewContentType = artifacts.previewContentType() != null
+                ? artifacts.previewContentType()
+                : blankTemplate.previewContentType();
+        return new TemplateExtractExecutionResult(new TemplateExtractResultVO(
+                resolvedExtractId,
                 fileName,
                 parsed.mappings().size(),
                 blankTemplate.status(),
                 blankTemplate.message(),
-                blankTemplate.downloadUrl(),
-                blankTemplate.previewUrl(),
-                blankTemplate.previewContentType(),
+                downloadUrl,
+                resolvedPreviewUrl,
+                previewContentType,
                 parsed.mappings(),
                 parsed.rawText()
-        );
+        ), artifacts.blankTemplateFileId(), artifacts.previewFileId());
     }
 
     @Override
     public BlankTemplateFile getBlankTemplate(String extractId) {
         BlankTemplateFile file = blankTemplateCache.get(extractId);
+        if (file == null) {
+            file = loadAsyncBlankTemplate(extractId);
+        }
         if (file == null || !Files.exists(file.path())) {
             throw new BusinessException(ErrorCode.NOT_FOUND.getCode(), "空白模板不存在或尚未生成");
         }
@@ -267,6 +297,10 @@ public class UserTemplateServiceImpl implements UserTemplateService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public TemplateExportResultVO exportWithTemplate(Long templateId, String outputFormat, MultipartFile file) {
+        return executeTemplateExport(templateId, outputFormat, file, currentCompanyId(), currentUserId()).result();
+    }
+
+    TemplateExportExecutionResult executeTemplateExport(Long templateId, String outputFormat, MultipartFile file, Long companyId, Long userId) {
         if (templateId == null) {
             throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "请选择模板");
         }
@@ -274,10 +308,10 @@ public class UserTemplateServiceImpl implements UserTemplateService {
             throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "请上传需要提取数据的目标文件");
         }
 
-        ExportContext context = resolveExportContext(templateId);
+        ExportContext context = resolveExportContext(templateId, companyId);
         String normalizedFormat = normalizeOutputFormat(outputFormat);
         if ("PDF".equals(normalizedFormat) && !isSofficeAvailable()) {
-            return new TemplateExportResultVO(
+            return new TemplateExportExecutionResult(new TemplateExportResultVO(
                     UUID.randomUUID().toString(),
                     context.template().getId(),
                     context.template().getTemplateName(),
@@ -289,7 +323,7 @@ public class UserTemplateServiceImpl implements UserTemplateService {
                     "",
                     "FAILED",
                     "当前环境未安装 LibreOffice/soffice，暂无法将 DOCX 模板转换为 PDF；请先选择 DOCX 导出或安装转换工具。"
-            );
+            ), null);
         }
 
         log.info("Template export calling Dify, templateId={}, fileName={}, outputFormat={}",
@@ -298,10 +332,10 @@ public class UserTemplateServiceImpl implements UserTemplateService {
         DifyTemplateExportParser.ParsedExportFields parsed = exportParser.parse(difyResponse);
         List<String> missing = resolveMissingPlaceholders(context.version().getId(), parsed.fields());
         RenderedTemplate rendered = renderTemplate(context, parsed.fields(), normalizedFormat);
-        createExportFileAsset(rendered, file, context.template(), parsed.rawText());
+        FileAssetEntity fileAsset = createExportFileAsset(rendered, file, context.template(), parsed.rawText(), companyId, userId);
         exportedTemplateCache.put(rendered.exportId(), new ExportedTemplateFile(rendered.fileName(), rendered.contentType(), rendered.path()));
 
-        return new TemplateExportResultVO(
+        return new TemplateExportExecutionResult(new TemplateExportResultVO(
                 rendered.exportId(),
                 context.template().getId(),
                 context.template().getTemplateName(),
@@ -313,7 +347,7 @@ public class UserTemplateServiceImpl implements UserTemplateService {
                 parsed.rawText(),
                 "GENERATED",
                 missing.isEmpty() ? "模板导出完成，文件已写入 MinIO" : "模板导出完成并写入 MinIO，但存在未返回字段，请检查缺失占位符"
-        );
+        ), fileAsset.getId());
     }
 
     @Override
@@ -325,12 +359,12 @@ public class UserTemplateServiceImpl implements UserTemplateService {
         return file;
     }
 
-    private ExportContext resolveExportContext(Long templateId) {
+    private ExportContext resolveExportContext(Long templateId, Long companyId) {
         TemplateEntity template = templateMapper.selectOne(new LambdaQueryWrapper<TemplateEntity>()
                 .eq(TemplateEntity::getId, templateId)
                 .eq(TemplateEntity::getDeleted, 0)
                 .eq(TemplateEntity::getStatus, 1)
-                .and(wrapper -> wrapper.eq(TemplateEntity::getCompanyId, currentCompanyId()).or().isNull(TemplateEntity::getCompanyId)));
+                .and(wrapper -> wrapper.eq(TemplateEntity::getCompanyId, companyId).or().isNull(TemplateEntity::getCompanyId)));
         if (template == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND.getCode(), "模板不存在或未启用");
         }
@@ -438,14 +472,14 @@ public class UserTemplateServiceImpl implements UserTemplateService {
         return pdfPath;
     }
 
-    private void createExportFileAsset(RenderedTemplate rendered, MultipartFile sourceFile, TemplateEntity template, String rawText) {
+    private FileAssetEntity createExportFileAsset(RenderedTemplate rendered, MultipartFile sourceFile, TemplateEntity template, String rawText, Long companyId, Long userId) {
         StoredObject stored = objectStorageService.put(
-                "exports/" + currentCompanyId() + "/" + rendered.exportId() + "/" + rendered.fileName(),
+                "exports/" + companyId + "/" + rendered.exportId() + "/" + rendered.fileName(),
                 rendered.path(),
                 rendered.contentType()
         );
         FileAssetEntity entity = new FileAssetEntity();
-        entity.setCompanyId(currentCompanyId());
+        entity.setCompanyId(companyId);
         entity.setBizType("TEMPLATE_EXPORT");
         entity.setFileName(limitText(rendered.fileName(), 255));
         entity.setOriginalName(limitText(safeFileName(sourceFile.getOriginalFilename()), 255));
@@ -456,11 +490,12 @@ public class UserTemplateServiceImpl implements UserTemplateService {
         entity.setObjectKey(limitText(stored.objectKey(), 255));
         entity.setFileHash(hashText(template.getId() + ":" + rendered.exportId() + ":" + rawText));
         entity.setStatus(1);
-        entity.setCreatedBy(currentUserId());
+        entity.setCreatedBy(userId);
         entity.setCreatedAt(LocalDateTime.now());
         entity.setUpdatedAt(LocalDateTime.now());
         entity.setDeleted(0);
         fileAssetMapper.insert(entity);
+        return entity;
     }
 
     private String normalizeOutputFormat(String outputFormat) {
@@ -497,10 +532,22 @@ public class UserTemplateServiceImpl implements UserTemplateService {
             return request.mappings();
         }
         TemplateExtractResultVO cached = extractResultCache.get(request.extractId());
-        if (cached == null || cached.mappings() == null || cached.mappings().isEmpty()) {
+        if (cached != null && cached.mappings() != null && !cached.mappings().isEmpty()) {
+            return cached.mappings().stream()
+                    .map(item -> new TemplateFieldMappingSaveRequest(
+                            item.originalText(),
+                            item.placeholderKey(),
+                            item.dataType(),
+                            item.description(),
+                            null
+                    ))
+                    .toList();
+        }
+        Optional<TemplateExtractTaskPayload> asyncPayload = findAsyncTemplateExtractPayload(request.extractId());
+        if (asyncPayload.isEmpty() || asyncPayload.get().result().mappings() == null || asyncPayload.get().result().mappings().isEmpty()) {
             return List.of();
         }
-        return cached.mappings().stream()
+        return asyncPayload.get().result().mappings().stream()
                 .map(item -> new TemplateFieldMappingSaveRequest(
                         item.originalText(),
                         item.placeholderKey(),
@@ -512,7 +559,7 @@ public class UserTemplateServiceImpl implements UserTemplateService {
     }
 
     private FileAssetEntity createMinioTemplateFileAsset(TemplateExtractSaveRequest request) {
-        BlankTemplateFile blankTemplateFile = blankTemplateCache.get(request.extractId());
+        BlankTemplateFile blankTemplateFile = getBlankTemplate(request.extractId());
         if (blankTemplateFile == null || !Files.exists(blankTemplateFile.path())) {
             throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "当前提取结果没有可保存的 DOCX 空白模板，请上传 DOCX 样本或先完成 PDF 转 DOCX 能力");
         }
@@ -539,6 +586,134 @@ public class UserTemplateServiceImpl implements UserTemplateService {
         entity.setDeleted(0);
         fileAssetMapper.insert(entity);
         return entity;
+    }
+
+    private BlankTemplateArtifacts persistBlankTemplateArtifacts(String extractId, String originalFileName, Long companyId, Long userId) {
+        BlankTemplateFile blankTemplateFile = blankTemplateCache.get(extractId);
+        if (blankTemplateFile == null || !Files.exists(blankTemplateFile.path())) {
+            return new BlankTemplateArtifacts(null, null, null);
+        }
+        Long blankTemplateFileId = createDerivedTemplateFileAsset(
+                "TEMPLATE_EXTRACT_BLANK",
+                blankTemplateFile.fileName(),
+                originalFileName,
+                blankTemplateFile.path(),
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                extractId,
+                companyId,
+                userId,
+                "template-extract/" + companyId + "/" + extractId + "/blank/" + blankTemplateFile.fileName()
+        ).getId();
+        Long previewFileId = null;
+        String previewContentType = blankTemplateFile.previewContentType();
+        if (blankTemplateFile.previewPath() != null && Files.exists(blankTemplateFile.previewPath()) && StringUtils.hasText(blankTemplateFile.previewContentType())) {
+            previewFileId = createDerivedTemplateFileAsset(
+                    "TEMPLATE_EXTRACT_PREVIEW",
+                    blankTemplateFile.previewFileName(),
+                    originalFileName,
+                    blankTemplateFile.previewPath(),
+                    blankTemplateFile.previewContentType(),
+                    extractId + "-preview",
+                    companyId,
+                    userId,
+                    "template-extract/" + companyId + "/" + extractId + "/preview/" + blankTemplateFile.previewFileName()
+            ).getId();
+        }
+        return new BlankTemplateArtifacts(blankTemplateFileId, previewFileId, previewContentType);
+    }
+
+    private FileAssetEntity createDerivedTemplateFileAsset(
+            String bizType,
+            String fileName,
+            String originalName,
+            Path filePath,
+            String contentType,
+            String fileHash,
+            Long companyId,
+            Long userId,
+            String objectKey
+    ) {
+        StoredObject storedObject = objectStorageService.put(objectKey, filePath, contentType);
+        FileAssetEntity entity = new FileAssetEntity();
+        entity.setCompanyId(companyId);
+        entity.setBizType(bizType);
+        entity.setFileName(limitText(fileName, 255));
+        entity.setOriginalName(limitText(safeFileName(originalName), 255));
+        entity.setContentType(contentType);
+        entity.setFileSize(storedObject.size());
+        entity.setStorageType(storedObject.storageType());
+        entity.setBucketName(storedObject.bucketName());
+        entity.setObjectKey(limitText(storedObject.objectKey(), 255));
+        entity.setFileHash(limitText(fileHash, 64));
+        entity.setStatus(1);
+        entity.setCreatedBy(userId);
+        entity.setCreatedAt(LocalDateTime.now());
+        entity.setUpdatedAt(LocalDateTime.now());
+        entity.setDeleted(0);
+        fileAssetMapper.insert(entity);
+        return entity;
+    }
+
+    private BlankTemplateFile loadAsyncBlankTemplate(String extractIdOrTaskNo) {
+        Optional<BlParseTaskEntity> taskOptional = findAsyncTemplateExtractTask(extractIdOrTaskNo);
+        if (taskOptional.isEmpty()) {
+            return null;
+        }
+        BlParseTaskEntity task = taskOptional.get();
+        if (!"SUCCESS".equals(task.getTaskStatus()) || task.getResultFileId() == null) {
+            return null;
+        }
+        FileAssetEntity blankAsset = fileAssetMapper.selectById(task.getResultFileId());
+        if (blankAsset == null || !StringUtils.hasText(blankAsset.getObjectKey())) {
+            return null;
+        }
+        Path blankPath = objectStorageService.downloadToTemp(blankAsset.getBucketName(), blankAsset.getObjectKey(), blankAsset.getFileName());
+        TemplateExtractTaskPayload payload = readAsyncTemplateExtractPayload(task.getResultPayload());
+        if (payload == null || payload.previewFileId() == null) {
+            return new BlankTemplateFile(blankAsset.getFileName(), blankPath);
+        }
+        FileAssetEntity previewAsset = fileAssetMapper.selectById(payload.previewFileId());
+        if (previewAsset == null || !StringUtils.hasText(previewAsset.getObjectKey())) {
+            return new BlankTemplateFile(blankAsset.getFileName(), blankPath);
+        }
+        Path previewPath = objectStorageService.downloadToTemp(previewAsset.getBucketName(), previewAsset.getObjectKey(), previewAsset.getFileName());
+        return new BlankTemplateFile(
+                blankAsset.getFileName(),
+                blankPath,
+                previewAsset.getFileName(),
+                previewAsset.getContentType(),
+                previewPath
+        );
+    }
+
+    private Optional<TemplateExtractTaskPayload> findAsyncTemplateExtractPayload(String extractIdOrTaskNo) {
+        return findAsyncTemplateExtractTask(extractIdOrTaskNo)
+                .map(task -> readAsyncTemplateExtractPayload(task.getResultPayload()));
+    }
+
+    private Optional<BlParseTaskEntity> findAsyncTemplateExtractTask(String extractIdOrTaskNo) {
+        BlParseTaskEntity byTaskNo = taskMapper.selectOne(new LambdaQueryWrapper<BlParseTaskEntity>()
+                .eq(BlParseTaskEntity::getTaskType, "TEMPLATE_EXTRACT")
+                .eq(BlParseTaskEntity::getTaskNo, extractIdOrTaskNo)
+                .last("LIMIT 1"));
+        if (byTaskNo != null) {
+            return Optional.of(byTaskNo);
+        }
+        return Optional.ofNullable(taskMapper.selectOne(new LambdaQueryWrapper<BlParseTaskEntity>()
+                .eq(BlParseTaskEntity::getTaskType, "TEMPLATE_EXTRACT")
+                .eq(BlParseTaskEntity::getFileHash, extractIdOrTaskNo)
+                .last("LIMIT 1")));
+    }
+
+    private TemplateExtractTaskPayload readAsyncTemplateExtractPayload(String payload) {
+        if (!StringUtils.hasText(payload)) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(payload, TemplateExtractTaskPayload.class);
+        } catch (JsonProcessingException ex) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR.getCode(), "模板提取任务结果读取失败");
+        }
     }
 
     private TemplateEntity createTemplate(TemplateExtractSaveRequest request) {
@@ -1037,6 +1212,32 @@ public class UserTemplateServiceImpl implements UserTemplateService {
             String fileName,
             String contentType,
             Path path
+    ) {
+    }
+
+    private record BlankTemplateArtifacts(
+            Long blankTemplateFileId,
+            Long previewFileId,
+            String previewContentType
+    ) {
+    }
+
+    private record TemplateExtractTaskPayload(
+            TemplateExtractResultVO result,
+            Long previewFileId
+    ) {
+    }
+
+    record TemplateExtractExecutionResult(
+            TemplateExtractResultVO result,
+            Long blankTemplateFileId,
+            Long previewFileId
+    ) {
+    }
+
+    record TemplateExportExecutionResult(
+            TemplateExportResultVO result,
+            Long fileAssetId
     ) {
     }
 }
