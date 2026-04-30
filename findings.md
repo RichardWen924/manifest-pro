@@ -33,6 +33,8 @@
 | 连调验证使用 MySQL/Redis Testcontainers + MockMvc + Spring 消费直连 | 在当前环境里比强依赖外部 Rabbit 镜像更稳定，仍能覆盖 HTTP/DB/缓存/消费主链路 |
 | 模板提取和模板导出都沿用 `bl_parse_task` 统一任务表扩展 `task_type` | 先复用任务中心骨架，降低第二阶段拆服务前的模型迁移成本 |
 | 空白模板、预览文件、导出文件都落成 `file_asset + object storage` | 避免结果只存在内存或本地临时目录，支持异步消费和后续跨服务读取 |
+| Phase D 先采用 `Feign + 独立 task service + RabbitMQ`，暂不引入 Dubbo | 当前项目仍以 HTTP 控制面 + MQ 异步执行面为主，复杂度更可控 |
+| `service-user` 仅保留任务入口、查询和文件下载编排，MQ listener 收敛到 `service-llm-task` | 先把高并发调用和 LLM 负载集中到独立服务，降低 `service-user` 职责膨胀 |
 
 ## Issues Encountered
 | Issue | Resolution |
@@ -43,6 +45,8 @@
 | 模块化 Maven 工程在单模块验证时不会自动带上新依赖模块源码 | 改为 `./mvnw -pl service/service-user -am ...` 联动验证 |
 | RabbitMQ 容器首次镜像拉取受外部 Docker Registry 网络波动影响 | 已保留外部 MQ 代码实现，同时将测试验证改为更稳定的本地连调路径 |
 | 模板提取链路原有保存模板逻辑只认内存缓存中的 `extractId` | 已让保存逻辑支持从异步任务结果回退取数，确保 `taskNo` 也能走完整闭环 |
+| 本地数据库未执行最新迁移，导致异步模板提取在入库阶段失败而不是 MQ 阶段失败 | 已执行 `V4__bill_parse_task_async_enhance.sql` 和 `V5__async_task_extensions.sql`，现在可正常提交并入队 |
+| `service-llm-task` 为了尽快完成拆分，当前复用了部分 `service-user` 代码到新模块，存在后续收敛共享库的空间 | 第一版目标是先打通微服务边界和联调链路，后续再考虑抽取 `task-core` 或共享 starter |
 
 ## Resources
 - 项目根目录：`/Users/richard/CodeFile/Project/manifestReader`
@@ -62,6 +66,10 @@
   - `/Users/richard/CodeFile/Project/manifestReader/service/service-user/src/main/java/com/manifestreader/user/service/impl/TemplateExtractTaskServiceImpl.java`
   - `/Users/richard/CodeFile/Project/manifestReader/service/service-user/src/test/java/com/manifestreader/user/service/impl/TemplateExportTaskIntegrationTest.java`
   - `/Users/richard/CodeFile/Project/manifestReader/service/service-user/src/test/java/com/manifestreader/user/service/impl/TemplateExtractTaskIntegrationTest.java`
+  - `/Users/richard/CodeFile/Project/manifestReader/service/service-llm-task/src/main/java/com/manifestreader/llmtask/LlmTaskApplication.java`
+  - `/Users/richard/CodeFile/Project/manifestReader/service/service-llm-task/src/main/java/com/manifestreader/llmtask/controller/InternalTemplateTaskController.java`
+  - `/Users/richard/CodeFile/Project/manifestReader/service/service-llm-task/src/main/java/com/manifestreader/llmtask/controller/InternalBillTaskController.java`
+  - `/Users/richard/CodeFile/Project/manifestReader/service/service-user/src/main/java/com/manifestreader/user/feign/LlmTaskFeignClient.java`
 
 ## Visual/Browser Findings
 - 本轮未使用浏览器或图像资料。

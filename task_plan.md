@@ -4,7 +4,7 @@
 为 `manifestReader` 制定一份围绕主业务链路的消息驱动改造计划，使项目在保留航运单证业务连续性的前提下，引入 `Redis`、`RabbitMQ`、`Elasticsearch`、`Kibana` 和高并发设计能力。
 
 ## Current Phase
-Phase 7
+Phase 10
 
 ## Phases
 ### Phase 1: Requirements & Discovery
@@ -69,4 +69,5 @@ Phase 7
 - 当前已完成 RabbitMQ 本地部署基建，支持开发环境快速启停与管理台访问。
 - 当前已完成三条消息驱动链路：提单异步解析、模板异步导出、模板异步提取。
 - 模板提取已支持从异步任务结果下载空白模板、预览模板，并直接保存为正式模板定义。
-- 下一轮可继续进入服务拆分阶段，将 LLM 任务中心独立为微服务，并用 Feign 对接 `service-user/service-admin`。
+- 当前已完成 Phase D 第一版：新增 `service-llm-task` 独立微服务，`service-user` 通过 Feign 转发异步任务提交与状态查询。
+- 下一轮可继续收敛共享代码边界，并把 `service-admin` 也接到 `service-llm-task` 任务中心。

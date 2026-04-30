@@ -18,6 +18,15 @@ springdoc:
     path: /swagger-ui.html
 
 manifest:
+  llm-task:
+    base-url: ${LLM_TASK_BASE_URL:http://127.0.0.1:8084}
+  messaging:
+    bill-parse:
+      listener-enabled: ${BILL_PARSE_LISTENER_ENABLED:false}
+    template-export:
+      listener-enabled: ${TEMPLATE_EXPORT_LISTENER_ENABLED:false}
+    template-extract:
+      listener-enabled: ${TEMPLATE_EXTRACT_LISTENER_ENABLED:false}
   user:
     mybatis:
       enabled: ${USER_MYBATIS_ENABLED:true}

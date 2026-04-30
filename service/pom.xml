@@ -18,6 +18,7 @@
         <module>service-admin</module>
         <module>service-user</module>
         <module>service-auth</module>
+        <module>service-llm-task</module>
     </modules>
 
     <dependencies>

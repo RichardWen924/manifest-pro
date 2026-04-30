@@ -132,6 +132,31 @@
   - `service/service-user/src/main/java/com/manifestreader/user/model/vo/TemplateExtractTask*.java`
   - `service/service-user/src/test/java/com/manifestreader/user/service/impl/TemplateExtractTaskIntegrationTest.java`
 
+### Phase 10: SQL Repair & LLM Task Service Split
+- **Status:** complete
+- Actions taken:
+  - 定位本地模板提取“不进 RabbitMQ”的真实根因是 `bl_parse_task` 缺少 `task_type/file_hash` 等迁移字段，而不是 MQ 资源缺失。
+  - 使用本地 JDBC 脚本实际执行 `V4__bill_parse_task_async_enhance.sql` 和 `V5__async_task_extensions.sql`，补齐任务表结构。
+  - 新增 `service-llm-task` 微服务模块，承接提单解析、模板提取、模板导出三类异步任务的提交、消费和状态查询。
+  - 在 `service-user` 中新增 Feign 客户端和远程任务服务实现，把异步任务入口和查询统一代理到 `service-llm-task`。
+  - 调整 `service-user` 默认配置，关闭本地 listener，让 MQ 消费职责收敛到 `service-llm-task`。
+  - 完成双服务本地联调：`service-llm-task` 启动于 `8084`，`service-user` 启动于 `8082`，模板提取请求可经由 Feign 成功入队并进入 MQ 消费。
+- Files created/modified:
+  - `service/pom.xml`
+  - `service/service-llm-task/pom.xml`
+  - `service/service-llm-task/src/main/java/com/manifestreader/llmtask/LlmTaskApplication.java`
+  - `service/service-llm-task/src/main/java/com/manifestreader/llmtask/controller/InternalBillTaskController.java`
+  - `service/service-llm-task/src/main/java/com/manifestreader/llmtask/controller/InternalTemplateTaskController.java`
+  - `service/service-llm-task/src/main/resources/application.yml`
+  - `service/service-llm-task/src/main/resources/dev.yml`
+  - `service/service-user/src/main/java/com/manifestreader/user/feign/LlmTaskFeignClient.java`
+  - `service/service-user/src/main/java/com/manifestreader/user/service/impl/RemoteBillParseTaskService.java`
+  - `service/service-user/src/main/java/com/manifestreader/user/service/impl/RemoteTemplateExportTaskService.java`
+  - `service/service-user/src/main/java/com/manifestreader/user/service/impl/RemoteTemplateExtractTaskService.java`
+  - `service/service-user/src/main/resources/application.yml`
+  - `zfile/sql/V4__bill_parse_task_async_enhance.sql`
+  - `zfile/sql/V5__async_task_extensions.sql`
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
@@ -150,6 +175,13 @@
 | 模板提取链路连调 | `./mvnw -pl service/service-user -am -Dtest=TemplateExtractTaskIntegrationTest -Dsurefire.failIfNoSpecifiedTests=false test` | HTTP 提交、任务成功、模板下载/预览/保存全部通过 | 1 个集成测试通过 | ✓ |
 | 模板异步链路组合验证 | `./mvnw -pl service/service-user -am -Dtest=UserTemplateControllerTest,TemplateExportTaskServiceImplTest,TemplateExportTaskIntegrationTest,TemplateExtractTaskIntegrationTest -Dsurefire.failIfNoSpecifiedTests=false test` | 控制器、导出、提取任务链路一起通过 | 7 个测试全部通过 | ✓ |
 | 最新整包构建 | `./mvnw -pl service/service-user -am package -DskipTests` | 模板异步化完成后仍可正常打包 | 构建成功 | ✓ |
+| 任务中心双模块编译 | `./mvnw -pl service/service-llm-task,service/service-user -am -DskipTests compile` | `service-user` 与 `service-llm-task` 一起编译通过 | 构建成功 | ✓ |
+| 任务中心双模块打包 | `./mvnw -pl service/service-llm-task,service/service-user -am package -DskipTests` | 两个服务都能生成可执行 JAR | 构建成功 | ✓ |
+| llm-task 健康检查 | `curl -s http://127.0.0.1:8084/actuator/health` | 任务中心服务健康 | 返回 `{"status":"UP"}` | ✓ |
+| user 健康检查（Feign 模式） | `curl -s http://127.0.0.1:8082/actuator/health` | 用户服务健康 | 返回 `{"status":"UP"}` | ✓ |
+| Phase D 模板提取提交 | `curl -s -X POST ... http://127.0.0.1:8082/user/templates/extract/tasks` | 请求由 `service-user` 代理到 `service-llm-task` 并成功提交任务 | 返回 `taskNo=TPL-EXTRACT-20260430180534-affc`，状态 `PENDING` | ✓ |
+| Phase D 模板提取查询 | `curl -s ... http://127.0.0.1:8082/user/templates/extract/tasks/TPL-EXTRACT-20260430180534-affc` | 可经由 `service-user` 查询远端任务状态 | 返回状态 `RUNNING` | ✓ |
+| RabbitMQ 队列消费观测 | `curl -s -u guest:guest http://127.0.0.1:15672/api/queues/%2F/template.extract.queue` | 提交后可见 `publish/deliver` 增加且存在活跃消费者 | `publish=2`、`deliver=2`、`messages_unacknowledged=1` | ✓ |
 
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |
@@ -162,12 +194,15 @@
 | 2026-04-29 14:27:28 CST | 在根 POM 执行 `spring-boot:run` 找不到主类 | 1 | 改为先从根工程 `-pl service/service-user -am package`，再用可执行 JAR 启动 |
 | 2026-04-29 14:32:59 CST | 本地未启动 RabbitMQ 导致 `actuator/health` 为 `DOWN` | 1 | `dev` 环境默认关闭 Rabbit listener 与 Rabbit 健康检查 |
 | 2026-04-30 12:15:49 CST | 模板提取集成测试里预览资产 `file_hash` 超出字段长度 | 1 | 缩短测试数据中的 `file_hash` 值后重跑通过 |
+| 2026-04-30 17:41:03 CST | 本地库 `bl_parse_task` 缺少 `task_type` 导致模板提取请求在发 MQ 前插入失败 | 1 | 使用 JDBC 执行 `V4` 与 `V5` 迁移，补齐字段后请求可成功入队 |
+| 2026-04-30 18:02:14 CST | `service-llm-task` 编译缺少 MinIO 依赖 | 1 | 为新模块补充 `io.minio:minio` 依赖后重新编译通过 |
+| 2026-04-30 18:03:21 CST | `service-llm-task` 仅扫描 `com.manifestreader.llmtask`，导致任务实现和 Mapper 无法注入 | 1 | 将 `scanBasePackages` 扩大到 `com.manifestreader` 后服务成功启动 |
 
 ## 5-Question Reboot Check
 | Question | Answer |
 |----------|--------|
-| Where am I? | RabbitMQ 本地部署、提单异步解析、模板异步导出、模板异步提取都已完成并验证通过 |
-| Where am I going? | 下一步进入 `service-llm-task` 微服务拆分，把任务中心从 `service-user` 平滑迁出 |
+| Where am I? | RabbitMQ 本地部署、三条异步任务链路，以及 `service-llm-task` 微服务拆分第一版都已完成并联调通过 |
+| Where am I going? | 下一步继续收敛共享代码、补齐 `service-admin` 对任务中心的调用，并清理跨服务复制代码 |
 | What's the goal? | 将航运主业务逐步改造成带 Redis 与 MQ 的消息驱动架构，并最终沉淀成独立任务中心服务 |
-| What have I learned? | 复用统一任务骨架能显著降低异步功能扩展成本，而对象存储资产化是从 JVM 内存缓存走向可靠异步链路的关键一步 |
-| What have I done? | 已完成本地 MQ 部署、模板导出异步化、模板提取异步化、闭环连调测试和最新整包构建验证 |
+| What have I learned? | 统一任务模型能支撑平滑服务拆分，而先修复数据库迁移和启动边界，再拆 Feign/消费职责，会显著降低微服务演进风险 |
+| What have I done? | 已完成本地 MQ 部署、SQL 迁移修复、模板导出/提取异步化、`service-llm-task` 拆分、双服务编译打包和 Feign+MQ 联调验证 |
