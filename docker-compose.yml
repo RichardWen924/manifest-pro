@@ -56,8 +56,35 @@ services:
         mc mb --ignore-existing "local/$$MINIO_BUCKET"
         mc anonymous set none "local/$$MINIO_BUCKET"
 
+  nacos:
+    image: nacos/nacos-server:v2.5.1
+    container_name: manifest-reader-nacos
+    restart: unless-stopped
+    ports:
+      - "8848:8848"
+      - "9848:9848"
+      - "9849:9849"
+    environment:
+      MODE: standalone
+      PREFER_HOST_MODE: hostname
+      NACOS_AUTH_ENABLE: "false"
+      JVM_XMS: 256m
+      JVM_XMX: 512m
+      JVM_XMN: 128m
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8848/nacos/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    volumes:
+      - nacos-data:/home/nacos/data
+      - nacos-logs:/home/nacos/logs
+
 volumes:
   rabbitmq-data:
   minio-data:
     external: true
     name: 419f0b5660b130741b83693545124171b3c61c76724dcf3e28a81d8267f74de5
+  nacos-data:
+  nacos-logs:

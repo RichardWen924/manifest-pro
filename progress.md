@@ -197,6 +197,59 @@
   - `frontend/client/src/App.vue`
   - `frontend/client/src/api/clientApi.js`
 
+### Phase 13: Nacos Service Discovery
+- **Status:** complete
+- Actions taken:
+  - 将 Nacos 作为独立基础设施容器加入根目录 `docker-compose.yml`，与 RabbitMQ、MinIO 位于同一 compose 项目分组。
+  - 为 `service-user`、`service-llm-task` 和 `gateway` 增加 Spring Cloud Alibaba Nacos Discovery 依赖。
+  - 为三个服务补充 `spring.cloud.nacos.discovery` 本地配置，默认连接 `127.0.0.1:8848`。
+  - 将 `service-user` 的 `LlmTaskFeignClient` 改为默认不写死 URL，使其在未配置 `LLM_TASK_BASE_URL` 时通过服务名 `manifest-reader-llm-task` 发现任务中心。
+  - 将 Spring Cloud Alibaba BOM 从 `2025.1.0.0` 调整为适配当前 Spring Boot 3.5.13 的 `2025.0.0.0`。
+  - 为本地服务发现增加 `NACOS_DISCOVERY_IP` 配置项，并在本地启动时固定为 `127.0.0.1`。
+  - 启动 Nacos、`service-llm-task`、`service-user` 后，验证 Nacos 服务列表存在 `manifest-reader-llm-task` 与 `manifest-reader-user`。
+  - 通过 `POST /user/templates/extract/save` 验证 `service-user -> Nacos -> service-llm-task -> RabbitMQ` 的真实链路，保存任务最终 `SUCCESS`。
+  - 更新本地基础设施文档，补充 Nacos 控制台、服务地址和验证命令。
+- Files created/modified:
+  - `docker-compose.yml`
+  - `pom.xml`
+  - `gateway/pom.xml`
+  - `gateway/src/main/resources/application.yml`
+  - `service/service-user/pom.xml`
+  - `service/service-user/src/main/java/com/manifestreader/user/feign/LlmTaskFeignClient.java`
+  - `service/service-user/src/main/resources/application.yml`
+  - `service/service-llm-task/pom.xml`
+  - `service/service-llm-task/src/main/resources/application.yml`
+  - `docs/backend-rabbitmq-local.md`
+  - `task_plan.md`
+  - `progress.md`
+
+### Phase 14: Nacos Config Center
+- **Status:** complete
+- Actions taken:
+  - 为 `gateway`、`service-user`、`service-llm-task`、`service-auth`、`service-admin` 增加 Nacos Config 依赖。
+  - 为五个服务的 `application.yml` 增加 `optional:nacos:${spring.application.name}-${spring.profiles.active:dev}.yml` 导入规则。
+  - 将五个服务当前 `dev.yml` 发布到本地 Nacos Config，DataId 分别为 `manifest-reader-*-dev.yml`。
+  - 保留 `optional:classpath:dev.yml` 作为本地 fallback，避免 Nacos 不可用时影响开发启动。
+  - 将本地 Nacos 用户名密码默认值调整为空，避免 auth 关闭时产生无效鉴权噪声。
+  - 重新打包 `gateway`、`service-admin`、`service-auth`、`service-user`、`service-llm-task`，验证配置中心依赖兼容。
+  - 重启 `service-user` 和 `service-llm-task`，确认日志出现 Nacos Config 加载成功。
+  - 通过模板保存真实请求验证配置中心接入后，服务发现、Feign 和 RabbitMQ 异步保存链路仍然正常。
+- Files created/modified:
+  - `gateway/pom.xml`
+  - `gateway/src/main/resources/application.yml`
+  - `service/service-admin/pom.xml`
+  - `service/service-admin/src/main/resources/application.yml`
+  - `service/service-auth/pom.xml`
+  - `service/service-auth/src/main/resources/application.yml`
+  - `service/service-user/pom.xml`
+  - `service/service-user/src/main/resources/application.yml`
+  - `service/service-llm-task/pom.xml`
+  - `service/service-llm-task/src/main/resources/application.yml`
+  - `docs/backend-rabbitmq-local.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
@@ -236,6 +289,16 @@
 | 异步保存 HTTP 联调 | `POST http://127.0.0.1:18082/user/templates/extract/save` | 经 user -> Feign -> llm-task 提交保存任务 | 返回 `TPL-SAVE-20260501122153-dd94484d`，状态 `PENDING` | ✓ |
 | 异步保存任务查询 | `GET http://127.0.0.1:18082/user/templates/extract/save/tasks/TPL-SAVE-20260501122153-dd94484d` | 消费完成后返回成功结果 | 返回 `SUCCESS`，生成 `templateId=4024`、`templateVersionId=4124` | ✓ |
 | RabbitMQ 保存队列观测 | `curl -s -u guest:guest http://127.0.0.1:15672/api/queues/%2F/template.save.queue` | 可见消息投递、消费和 ACK | `publish=1`、`deliver=1`、`ack=1`、`messages=0`、`consumers=1` | ✓ |
+| Nacos Compose 配置检查 | `docker compose config --quiet` | RabbitMQ / MinIO / Nacos compose 配置合法 | 校验通过 | ✓ |
+| Nacos 依赖编译检查 | `./mvnw -pl service/service-user,service/service-llm-task,gateway -am -DskipTests compile` | 三个接入 Nacos 的服务编译通过 | 构建成功 | ✓ |
+| Nacos 版本修复后 clean 打包 | `./mvnw -pl service/service-user,service/service-llm-task,gateway -am -DskipTests clean package` | 清理旧 fat jar 后重新打包成功 | 构建成功，JAR 内 Nacos 依赖为 `2025.0.0.0` / `3.0.3` | ✓ |
+| Nacos 容器健康检查 | `curl -s -i http://127.0.0.1:8848/nacos/actuator/health` | 返回 UP | `HTTP/1.1 200`，`{"status":"UP"}` | ✓ |
+| Nacos 服务注册检查 | `curl -s 'http://127.0.0.1:8848/nacos/v1/ns/catalog/services?...'` | 可见 user 与 llm-task | `manifest-reader-user`、`manifest-reader-llm-task` 均健康实例数为 1 | ✓ |
+| Nacos Feign 真实链路 | `POST http://127.0.0.1:18082/user/templates/extract/save` | 通过服务名提交保存任务 | 返回任务 `TPL-SAVE-20260501133703-6d4d4893`，状态查询为 `SUCCESS` | ✓ |
+| Nacos Config 五服务打包 | `./mvnw -pl gateway,service/service-admin,service/service-auth,service/service-user,service/service-llm-task -am -DskipTests package` | 配置中心依赖接入后仍可打包 | 构建成功 | ✓ |
+| Nacos Config DataId 拉取 | `curl .../nacos/v1/cs/configs?dataId=manifest-reader-user-dev.yml&group=DEFAULT_GROUP` | 能返回已导入 YAML | 返回 `service-user` dev 配置内容 | ✓ |
+| Nacos Config 服务启动 | `java -jar ... --spring.profiles.active=dev` | 服务启动时加载 Nacos 配置 | `service-user` / `service-llm-task` 日志均出现 `Load config[...] success` | ✓ |
+| Nacos Config 后保存链路 | `POST /user/templates/extract/save` | 配置中心接入后异步保存仍成功 | `TPL-SAVE-20260501232648-847c6152` 最终 `SUCCESS` | ✓ |
 
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |

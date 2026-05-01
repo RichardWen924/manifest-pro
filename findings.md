@@ -21,6 +21,9 @@
 - Docker Desktop 中当前 compose 项目分组已经存在 `manifestreader -> rabbitmq`，用户希望 MinIO 也出现在同一分组下并列管理。
 - MinIO 已被纳入根目录 compose 项目，当前 `manifest-reader-minio` 与 `manifest-reader-rabbitmq` 均处于 healthy 状态。
 - 模板保存已纳入 `TEMPLATE_SAVE` 异步任务，前端提交后轮询任务状态，不再等待同步保存完成。
+- Nacos 已纳入根目录 compose 项目，用于本地服务发现和后续微服务治理演进。
+- 本地 JVM 启动时需要设置 `NACOS_DISCOVERY_IP=127.0.0.1`，否则 Nacos 可能注册 LAN IP，导致服务名调用出现 502。
+- 五个后端服务的 `dev.yml` 已导入本地 Nacos Config，DataId 统一为 `manifest-reader-<service>-dev.yml`。
 
 ## Technical Decisions
 | Decision | Rationale |
@@ -41,6 +44,12 @@
 | Phase D 先采用 `Feign + 独立 task service + RabbitMQ`，暂不引入 Dubbo | 当前项目仍以 HTTP 控制面 + MQ 异步执行面为主，复杂度更可控 |
 | `service-user` 仅保留任务入口、查询和文件下载编排，MQ listener 收敛到 `service-llm-task` | 先把高并发调用和 LLM 负载集中到独立服务，降低 `service-user` 职责膨胀 |
 | MinIO 统一纳入根目录 `docker-compose.yml`，但保持与 RabbitMQ 分离的独立 container | 统一项目分组和启动体验，同时避免把两个基础设施进程混塞进一个 container |
+| Nacos 统一纳入根目录 `docker-compose.yml`，同样保持独立 container | 让本地环境具备服务发现能力，同时符合一容器一主进程的基础设施实践 |
+| `service-user -> service-llm-task` 优先走 Nacos 服务发现，保留 `LLM_TASK_BASE_URL` 直连开关 | 兼顾微服务演进和本地排障效率 |
+| Spring Cloud Alibaba 使用 `2025.0.0.0` 而不是 `2025.1.0.0` | 当前项目是 Spring Boot 3.5.13，`2025.0.0.0` 与 Boot 3.5 运行期兼容 |
+| Nacos Config 使用 `${spring.application.name}-${spring.profiles.active}.yml` 作为 DataId | 统一配置中心命名，后续可自然扩展 `test`、`prod` 等环境 |
+| Nacos Config import 使用 `optional:` 并保留 classpath `dev.yml` fallback | Nacos 暂不可用时本地服务仍可启动，降低开发环境耦合 |
+| 本地 Nacos auth 关闭时客户端用户名密码默认留空 | 避免客户端向未启用认证的 Nacos 发送默认用户导致无效鉴权噪声 |
 | 模板保存异步化继续复用 `bl_parse_task` 任务中心，而不是新起第二套任务表 | 可以沿用已有任务状态、消息发布、失败重试和查询模式 |
 | `TEMPLATE_SAVE` 任务需要区分 `BILL_DOCX` 与 `BILL_PREVIEW` 两种保存策略 | 一类依赖 DOCX 资产，一类只需保存字段映射与预览资产，不能混用同一强约束 |
 | 异步保存消费端显式传递 `companyId/userId` 到保存内核 | MQ 消费线程没有 HTTP 请求上下文，不能依赖请求头 fallback |
@@ -60,6 +69,7 @@
 | 模板保存同步逻辑在 `BILL_PREVIEW` 场景下曾因没有 DOCX 资产而保存失败 | 已通过生成轻量预览 JSON 资产兜底修复，同步逻辑已可用，为异步化提供了可复用保存内核 |
 | 旧 `minio_new` 容器与 compose MinIO 端口冲突 | 已停止旧容器但保留数据，compose MinIO 使用旧 external volume 接管数据 |
 | 本机 Mockito inline mock maker 无法 attach 到 Oracle JDK 21 VM | 已在 `service-user` 测试资源中切换为 subclass mock maker，恢复本地测试稳定性 |
+| 本地 Nacos auth 关闭但客户端默认用户名为 `nacos` 时出现用户不存在日志 | 已将 `NACOS_USERNAME` / `NACOS_PASSWORD` 默认值调整为空，仅认证开启时显式配置 |
 
 ## Resources
 - 项目根目录：`/Users/richard/CodeFile/Project/manifestReader`

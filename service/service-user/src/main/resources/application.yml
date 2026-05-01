@@ -2,7 +2,28 @@ spring:
   application:
     name: manifest-reader-user
   config:
-    import: optional:classpath:dev.yml
+    import:
+      - optional:classpath:dev.yml
+      - optional:nacos:${spring.application.name}-${spring.profiles.active:dev}.yml
+  cloud:
+    nacos:
+      config:
+        enabled: ${NACOS_CONFIG_ENABLED:true}
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+        namespace: ${NACOS_NAMESPACE:}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+        file-extension: yml
+        username: ${NACOS_USERNAME:}
+        password: ${NACOS_PASSWORD:}
+      discovery:
+        enabled: ${NACOS_DISCOVERY_ENABLED:true}
+        register-enabled: ${NACOS_REGISTER_ENABLED:true}
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+        namespace: ${NACOS_NAMESPACE:}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+        ip: ${NACOS_DISCOVERY_IP:}
+        username: ${NACOS_USERNAME:}
+        password: ${NACOS_PASSWORD:}
 
 server:
   port: 8082
@@ -19,7 +40,7 @@ springdoc:
 
 manifest:
   llm-task:
-    base-url: ${LLM_TASK_BASE_URL:http://127.0.0.1:8084}
+    base-url: ${LLM_TASK_BASE_URL:}
   messaging:
     bill-parse:
       listener-enabled: ${BILL_PARSE_LISTENER_ENABLED:false}

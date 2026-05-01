@@ -4,7 +4,7 @@
 为 `manifestReader` 制定一份围绕主业务链路的消息驱动改造计划，使项目在保留航运单证业务连续性的前提下，引入 `Redis`、`RabbitMQ`、`Elasticsearch`、`Kibana` 和高并发设计能力。
 
 ## Current Phase
-Phase 12 complete
+Phase 14 complete
 
 ## Phases
 ### Phase 1: Requirements & Discovery
@@ -53,6 +53,23 @@ Phase 12 complete
 - [x] 新增任务状态查询接口与前端轮询方案
 - **Status:** complete
 
+### Phase 13: Nacos Service Discovery
+- [x] 将 Nacos 纳入根目录 `docker-compose.yml`
+- [x] 为 `service-user` / `service-llm-task` / `gateway` 接入 Nacos Discovery
+- [x] 将 `service-user -> service-llm-task` 的 Feign 调用改为优先走服务名发现
+- [x] 本地启动 Nacos 并验证服务注册
+- [x] 使用真实接口验证 Feign 通过 Nacos 调用任务中心
+- **Status:** complete
+
+### Phase 14: Nacos Config Center
+- [x] 为 `gateway`、`service-user`、`service-llm-task`、`service-auth`、`service-admin` 接入 Nacos Config
+- [x] 将各服务本地 `dev.yml` 导入 Nacos，形成统一 DataId 规则
+- [x] 保留 classpath `dev.yml` 作为 optional fallback，降低本地启动风险
+- [x] 重新打包核心后端模块，验证配置中心依赖兼容
+- [x] 启动 `service-user` / `service-llm-task` 并验证从 Nacos 拉取配置
+- [x] 使用真实保存任务验证 `service-user -> Nacos -> service-llm-task -> RabbitMQ` 链路
+- **Status:** complete
+
 ## Key Questions
 1. 如何在不破坏现有业务的前提下，把同步链路改成消息驱动？
 2. Redis 在本项目里最值得承担哪些职责，而不是只作为“技术点”出现？
@@ -70,6 +87,12 @@ Phase 12 complete
 | 第一阶段先改造提单异步解析，再沿同一任务骨架扩展模板导出与模板提取 | 可以复用任务中心、MQ、对象存储与状态流转能力，逐步减少同步重逻辑 |
 | 连调测试先采用“真实 HTTP + MySQL + Redis + Spring 消费链路”，暂不强绑外部 Rabbit 容器 | 当前环境下 Rabbit 镜像首次拉取不稳定，但主业务异步编排已经可以通过测试注入方式验证完整链路 |
 | 本地 RabbitMQ 优先用 Docker Compose 部署 `rabbitmq:3.13-management` | 部署与联调门槛低，便于展示队列、消费者和堆积情况 |
+| Nacos 作为独立 container 纳入同一 compose 项目，而不是塞进 RabbitMQ/MinIO container | 保持基础设施进程隔离，同时满足 Docker Desktop 同项目分组管理 |
+| Feign 优先使用 Nacos 服务发现，`LLM_TASK_BASE_URL` 仅作为调试兜底 | 更接近后续微服务拆分形态，同时保留本地直连排障能力 |
+| 本地 JVM 启动时将 `NACOS_DISCOVERY_IP` 固定为 `127.0.0.1` | 避免 Nacos 自动注册 LAN IP 后，本机服务发现链路出现 502 |
+| Nacos Config 使用 `${spring.application.name}-${spring.profiles.active}.yml` 作为 DataId | 与 Spring Cloud Alibaba 默认约定接近，便于后续多环境扩展 |
+| 本地 Nacos Config import 使用 `optional:` 并保留 classpath `dev.yml` | Nacos 不可用时仍能启动本地服务，避免配置中心成为开发单点阻塞 |
+| 本地 Nacos auth 关闭时，客户端用户名密码默认留空 | 避免客户端向未启用认证的 Nacos 发送默认用户导致无效鉴权噪声 |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
@@ -81,6 +104,9 @@ Phase 12 complete
 | Testcontainers 集成测试首次拉取 RabbitMQ 镜像时遇到 Docker Registry `EOF` | 1 | 调整为更轻量的本地连调路径，保留 MySQL/Redis 容器并用测试注入替代外部 Rabbit 投递 |
 | 独立 `minio_new` 容器占用 `9000/9001` 端口 | 1 | 停止旧容器但保留数据卷，compose MinIO 复用旧 volume 并健康启动 |
 | Mockito inline mock maker 在本机 JDK 21 无法 attach | 1 | 增加测试资源切换到 subclass mock maker，目标单测通过 |
+| `spring-cloud-alibaba 2025.1.0.0` 与当前 Spring Boot 3.5.13 运行期不兼容 | 1 | 切换到适配 Boot 3.5 的 `2025.0.0.0`，并执行 `clean package` 清理旧 fat jar 依赖 |
+| Nacos 默认注册 LAN IP 后，`service-user` 通过服务发现调用任务中心返回 502 | 1 | 本地启动增加 `NACOS_DISCOVERY_IP=127.0.0.1`，真实接口验证通过 |
+| 本地 Nacos auth 关闭但客户端默认用户名为 `nacos` 时出现用户不存在日志 | 1 | 将 `NACOS_USERNAME` / `NACOS_PASSWORD` 默认值调整为空，仅认证开启时显式配置 |
 
 ## Notes
 - 当前已完成 RabbitMQ 本地部署基建，支持开发环境快速启停与管理台访问。
@@ -89,4 +115,6 @@ Phase 12 complete
 - 当前已完成 Phase D 第一版：新增 `service-llm-task` 独立微服务，`service-user` 通过 Feign 转发异步任务提交与状态查询。
 - 当前已完成基础设施线：MinIO 与 RabbitMQ 统一纳入根目录 compose 项目，Docker Desktop 可在同一项目分组下管理。
 - 当前已完成业务异步线：模板保存纳入 `TEMPLATE_SAVE` 任务中心，形成“提取 -> 保存 -> 导出”完整异步链路。
+- 当前已完成服务治理线第一步：Nacos 作为本地服务发现中心，`service-user` 可通过服务名调用 `service-llm-task`。
+- 当前已完成配置中心线第一步：五个后端服务的 `dev.yml` 已导入 Nacos Config，服务启动时可从 Nacos 拉取配置。
 - 下一轮可进入 Redis 限流/任务热点缓存增强，或补充 RabbitMQ 死信、重试、补偿和监控指标。

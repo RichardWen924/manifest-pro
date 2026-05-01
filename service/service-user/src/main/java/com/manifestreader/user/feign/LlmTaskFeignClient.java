@@ -25,7 +25,7 @@ import org.springframework.web.multipart.MultipartFile;
 @FeignClient(
         name = "manifest-reader-llm-task",
         contextId = "llmTaskFeignClient",
-        url = "${manifest.llm-task.base-url:http://127.0.0.1:8084}"
+        url = "${manifest.llm-task.base-url:}"
 )
 public interface LlmTaskFeignClient {
 
