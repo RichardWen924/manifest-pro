@@ -773,6 +773,7 @@ import {
   fetchBillPage,
   fetchExportableTemplates,
   fetchTemplateManagePage,
+  getTemplateSaveTask,
   loginClient,
   registerClient,
   saveExtractedBillData,
@@ -1505,7 +1506,7 @@ async function saveTemplateDefinition() {
   clearSaveCloseTimer();
   setExtractSaveFeedback("saving", "正在保存模板", "正在写入模板定义、版本、字段映射与存储位置信息。");
   try {
-    const saved = await saveGeneratedTemplate({
+    const submitted = await saveGeneratedTemplate({
       extractId: result.extractId || result.id,
       fileName: result.name,
       saveAsTemplate: true,
@@ -1520,6 +1521,13 @@ async function saveTemplateDefinition() {
         sortNo: index + 1,
       })),
     });
+    setExtractSaveFeedback(
+      "saving",
+      "模板保存任务已提交",
+      submitted?.taskNo ? `任务号 ${submitted.taskNo}，正在等待 RabbitMQ 消费完成。` : "正在等待 RabbitMQ 消费完成。",
+    );
+    const task = await waitForTemplateSaveTask(submitted?.taskNo);
+    const saved = task?.result;
     notify(
       "模板已保存",
       saved?.message || `已保存模板定义，字段数 ${result.mappings.length}。`,
@@ -1535,6 +1543,29 @@ async function saveTemplateDefinition() {
   } finally {
     savingTemplate.value = false;
   }
+}
+
+async function waitForTemplateSaveTask(taskNo) {
+  if (!taskNo) {
+    throw new Error("后端未返回模板保存任务号。");
+  }
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const task = await getTemplateSaveTask(taskNo);
+    if (task?.status === "SUCCESS") {
+      return task;
+    }
+    if (task?.status === "FAILED") {
+      throw new Error(task.errorMessage || "模板保存任务执行失败。");
+    }
+    await wait(1000);
+  }
+  throw new Error("模板保存任务仍在处理中，请稍后刷新模板列表确认。");
+}
+
+function wait(milliseconds) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, milliseconds);
+  });
 }
 
 function setExtractSaveFeedback(type, title, message) {

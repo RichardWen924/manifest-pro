@@ -10,14 +10,16 @@ import com.manifestreader.user.model.vo.ExportedTemplateFile;
 import com.manifestreader.user.model.vo.TemplateExtractResultVO;
 import com.manifestreader.user.model.vo.TemplateExtractTaskSubmitVO;
 import com.manifestreader.user.model.vo.TemplateExtractTaskVO;
-import com.manifestreader.user.model.vo.TemplateExtractSaveResultVO;
 import com.manifestreader.user.model.vo.TemplateExportResultVO;
 import com.manifestreader.user.model.vo.TemplateExportTaskSubmitVO;
 import com.manifestreader.user.model.vo.TemplateExportTaskVO;
 import com.manifestreader.user.model.vo.TemplateManageVO;
 import com.manifestreader.user.model.vo.TemplateOptionVO;
+import com.manifestreader.user.model.vo.TemplateSaveTaskSubmitVO;
+import com.manifestreader.user.model.vo.TemplateSaveTaskVO;
 import com.manifestreader.user.service.TemplateExtractTaskService;
 import com.manifestreader.user.service.TemplateExportTaskService;
+import com.manifestreader.user.service.TemplateSaveTaskService;
 import com.manifestreader.user.service.UserTemplateService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -50,15 +52,18 @@ public class UserTemplateController {
     private final UserTemplateService templateService;
     private final TemplateExtractTaskService templateExtractTaskService;
     private final TemplateExportTaskService templateExportTaskService;
+    private final TemplateSaveTaskService templateSaveTaskService;
 
     public UserTemplateController(
             UserTemplateService templateService,
             TemplateExtractTaskService templateExtractTaskService,
-            TemplateExportTaskService templateExportTaskService
+            TemplateExportTaskService templateExportTaskService,
+            TemplateSaveTaskService templateSaveTaskService
     ) {
         this.templateService = templateService;
         this.templateExtractTaskService = templateExtractTaskService;
         this.templateExportTaskService = templateExportTaskService;
+        this.templateSaveTaskService = templateSaveTaskService;
     }
 
     @Operation(summary = "模板分页")
@@ -123,10 +128,16 @@ public class UserTemplateController {
         return R.ok(templateExtractTaskService.getTask(taskNo));
     }
 
-    @Operation(summary = "确认保存模板配置")
+    @Operation(summary = "异步确认保存模板配置")
     @PostMapping("/extract/save")
-    public R<TemplateExtractSaveResultVO> saveGeneratedTemplate(@Valid @RequestBody TemplateExtractSaveRequest request) {
-        return R.ok(templateService.saveGeneratedTemplate(request));
+    public R<TemplateSaveTaskSubmitVO> saveGeneratedTemplate(@Valid @RequestBody TemplateExtractSaveRequest request) {
+        return R.ok(templateSaveTaskService.submitTask(request));
+    }
+
+    @Operation(summary = "查询模板保存任务状态")
+    @GetMapping("/extract/save/tasks/{taskNo}")
+    public R<TemplateSaveTaskVO> saveTaskDetail(@PathVariable String taskNo) {
+        return R.ok(templateSaveTaskService.getTask(taskNo));
     }
 
     @Operation(summary = "下载空白 DOCX 模板")

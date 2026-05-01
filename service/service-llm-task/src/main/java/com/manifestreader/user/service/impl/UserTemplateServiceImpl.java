@@ -250,9 +250,16 @@ public class UserTemplateServiceImpl implements UserTemplateService {
 
     @Override
     public BlankTemplateFile getBlankTemplate(String extractId) {
+        return getBlankTemplate(extractId, currentCompanyId());
+    }
+
+    private BlankTemplateFile getBlankTemplate(String extractId, Long companyId) {
         BlankTemplateFile file = blankTemplateCache.get(extractId);
         if (file == null) {
-            file = loadAsyncBlankTemplate(extractId);
+            file = loadAsyncBlankTemplate(extractId, companyId);
+            if (file != null) {
+                blankTemplateCache.putIfAbsent(extractId, file);
+            }
         }
         if (file == null || !Files.exists(file.path())) {
             throw new BusinessException(ErrorCode.NOT_FOUND.getCode(), "空白模板不存在或尚未生成");
@@ -272,16 +279,31 @@ public class UserTemplateServiceImpl implements UserTemplateService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public TemplateExtractSaveResultVO saveGeneratedTemplate(TemplateExtractSaveRequest request) {
+        return saveGeneratedTemplate(request, currentCompanyId(), currentUserId());
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public TemplateExtractSaveResultVO saveGeneratedTemplate(TemplateExtractSaveRequest request, Long companyId, Long userId) {
         List<TemplateFieldMappingSaveRequest> mappings = resolveSaveMappings(request);
         if (mappings.isEmpty()) {
             throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "没有可保存的字段映射，请重新提取模板字段后再保存");
         }
 
-        FileAssetEntity fileAsset = createMinioTemplateFileAsset(request);
-        TemplateEntity template = createTemplate(request);
-        TemplateVersionEntity version = createTemplateVersion(template.getId(), fileAsset.getId(), mappings);
+        boolean previewOnlyTemplate = isPreviewOnlyTemplate(request);
+        FileAssetEntity fileAsset = previewOnlyTemplate
+                ? createPreviewTemplateFileAsset(request, mappings, companyId, userId)
+                : createMinioTemplateFileAsset(request, companyId, userId);
+        TemplateEntity template = createTemplate(request, companyId, userId);
+        TemplateVersionEntity version = createTemplateVersion(
+                template.getId(),
+                fileAsset == null ? null : fileAsset.getId(),
+                mappings,
+                previewOnlyTemplate ? "PREVIEW" : "DOCX",
+                userId
+        );
         template.setCurrentVersionId(version.getId());
         template.setUpdatedAt(LocalDateTime.now());
+        template.setUpdatedBy(userId);
         templateMapper.updateById(template);
         saveFieldMappings(version.getId(), mappings);
 
@@ -290,7 +312,9 @@ public class UserTemplateServiceImpl implements UserTemplateService {
                 version.getId(),
                 mappings.size(),
                 true,
-                "模板定义已保存，模板文件已写入 MinIO"
+                previewOnlyTemplate
+                        ? "模板定义已保存，当前为预览模板，未绑定 DOCX 文件"
+                        : "模板定义已保存，模板文件已写入 MinIO"
         );
     }
 
@@ -559,17 +583,21 @@ public class UserTemplateServiceImpl implements UserTemplateService {
     }
 
     private FileAssetEntity createMinioTemplateFileAsset(TemplateExtractSaveRequest request) {
-        BlankTemplateFile blankTemplateFile = getBlankTemplate(request.extractId());
+        return createMinioTemplateFileAsset(request, currentCompanyId(), currentUserId());
+    }
+
+    private FileAssetEntity createMinioTemplateFileAsset(TemplateExtractSaveRequest request, Long companyId, Long userId) {
+        BlankTemplateFile blankTemplateFile = getBlankTemplate(request.extractId(), companyId);
         if (blankTemplateFile == null || !Files.exists(blankTemplateFile.path())) {
             throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "当前提取结果没有可保存的 DOCX 空白模板，请上传 DOCX 样本或先完成 PDF 转 DOCX 能力");
         }
         StoredObject storedObject = objectStorageService.put(
-                "templates/" + currentCompanyId() + "/" + safeText(request.extractId(), "manual-" + System.currentTimeMillis()) + "/" + blankTemplateFile.fileName(),
+                "templates/" + companyId + "/" + safeText(request.extractId(), "manual-" + System.currentTimeMillis()) + "/" + blankTemplateFile.fileName(),
                 blankTemplateFile.path(),
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         );
         FileAssetEntity entity = new FileAssetEntity();
-        entity.setCompanyId(currentCompanyId());
+        entity.setCompanyId(companyId);
         entity.setBizType("TEMPLATE");
         entity.setFileName(limitText(blankTemplateFile.fileName(), 255));
         entity.setOriginalName(limitText(safeFileName(request.fileName()), 255));
@@ -580,12 +608,75 @@ public class UserTemplateServiceImpl implements UserTemplateService {
         entity.setObjectKey(limitText(storedObject.objectKey(), 255));
         entity.setFileHash(request.extractId());
         entity.setStatus(1);
-        entity.setCreatedBy(currentUserId());
+        entity.setCreatedBy(userId);
         entity.setCreatedAt(LocalDateTime.now());
         entity.setUpdatedAt(LocalDateTime.now());
         entity.setDeleted(0);
         fileAssetMapper.insert(entity);
         return entity;
+    }
+
+    private FileAssetEntity createPreviewTemplateFileAsset(
+            TemplateExtractSaveRequest request,
+            List<TemplateFieldMappingSaveRequest> mappings
+    ) {
+        return createPreviewTemplateFileAsset(request, mappings, currentCompanyId(), currentUserId());
+    }
+
+    private FileAssetEntity createPreviewTemplateFileAsset(
+            TemplateExtractSaveRequest request,
+            List<TemplateFieldMappingSaveRequest> mappings,
+            Long companyId,
+            Long userId
+    ) {
+        Path tempFile = null;
+        try {
+            tempFile = Files.createTempFile("manifest-template-preview-", ".json");
+            Map<String, Object> previewPayload = new LinkedHashMap<>();
+            previewPayload.put("extractId", request.extractId());
+            previewPayload.put("fileName", request.fileName());
+            previewPayload.put("templateName", request.templateName());
+            previewPayload.put("templateType", safeText(request.templateType(), "BILL_PREVIEW"));
+            previewPayload.put("rawText", request.rawText());
+            previewPayload.put("mappings", mappings);
+            objectMapper.writeValue(tempFile.toFile(), previewPayload);
+
+            String previewFileName = stripExtension(safeFileName(request.fileName())) + "-preview-template.json";
+            StoredObject storedObject = objectStorageService.put(
+                    "templates/" + companyId + "/" + safeText(request.extractId(), "preview-" + System.currentTimeMillis()) + "/" + previewFileName,
+                    tempFile,
+                    "application/json"
+            );
+
+            FileAssetEntity entity = new FileAssetEntity();
+            entity.setCompanyId(companyId);
+            entity.setBizType("TEMPLATE_PREVIEW");
+            entity.setFileName(limitText(previewFileName, 255));
+            entity.setOriginalName(limitText(safeFileName(request.fileName()), 255));
+            entity.setContentType("application/json");
+            entity.setFileSize(storedObject.size());
+            entity.setStorageType(storedObject.storageType());
+            entity.setBucketName(storedObject.bucketName());
+            entity.setObjectKey(limitText(storedObject.objectKey(), 255));
+            entity.setFileHash(limitText(request.extractId(), 64));
+            entity.setStatus(1);
+            entity.setCreatedBy(userId);
+            entity.setCreatedAt(LocalDateTime.now());
+            entity.setUpdatedAt(LocalDateTime.now());
+            entity.setDeleted(0);
+            fileAssetMapper.insert(entity);
+            return entity;
+        } catch (IOException ex) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR.getCode(), "预览模板资产生成失败");
+        } finally {
+            if (tempFile != null) {
+                try {
+                    Files.deleteIfExists(tempFile);
+                } catch (IOException ignored) {
+                    // ignore temp preview cleanup errors
+                }
+            }
+        }
     }
 
     private BlankTemplateArtifacts persistBlankTemplateArtifacts(String extractId, String originalFileName, Long companyId, Long userId) {
@@ -655,13 +746,17 @@ public class UserTemplateServiceImpl implements UserTemplateService {
     }
 
     private BlankTemplateFile loadAsyncBlankTemplate(String extractIdOrTaskNo) {
+        return loadAsyncBlankTemplate(extractIdOrTaskNo, currentCompanyId());
+    }
+
+    private BlankTemplateFile loadAsyncBlankTemplate(String extractIdOrTaskNo, Long companyId) {
         Optional<BlParseTaskEntity> taskOptional = findAsyncTemplateExtractTask(extractIdOrTaskNo);
         if (taskOptional.isEmpty()) {
-            return null;
+            return loadPersistedBlankTemplateAsset(extractIdOrTaskNo, companyId);
         }
         BlParseTaskEntity task = taskOptional.get();
         if (!"SUCCESS".equals(task.getTaskStatus()) || task.getResultFileId() == null) {
-            return null;
+            return loadPersistedBlankTemplateAsset(extractIdOrTaskNo, companyId);
         }
         FileAssetEntity blankAsset = fileAssetMapper.selectById(task.getResultFileId());
         if (blankAsset == null || !StringUtils.hasText(blankAsset.getObjectKey())) {
@@ -673,6 +768,38 @@ public class UserTemplateServiceImpl implements UserTemplateService {
             return new BlankTemplateFile(blankAsset.getFileName(), blankPath);
         }
         FileAssetEntity previewAsset = fileAssetMapper.selectById(payload.previewFileId());
+        if (previewAsset == null || !StringUtils.hasText(previewAsset.getObjectKey())) {
+            return new BlankTemplateFile(blankAsset.getFileName(), blankPath);
+        }
+        Path previewPath = objectStorageService.downloadToTemp(previewAsset.getBucketName(), previewAsset.getObjectKey(), previewAsset.getFileName());
+        return new BlankTemplateFile(
+                blankAsset.getFileName(),
+                blankPath,
+                previewAsset.getFileName(),
+                previewAsset.getContentType(),
+                previewPath
+        );
+    }
+
+    private BlankTemplateFile loadPersistedBlankTemplateAsset(String extractId, Long companyId) {
+        FileAssetEntity blankAsset = fileAssetMapper.selectOne(new LambdaQueryWrapper<FileAssetEntity>()
+                .eq(FileAssetEntity::getBizType, "TEMPLATE_EXTRACT_BLANK")
+                .eq(FileAssetEntity::getFileHash, extractId)
+                .eq(companyId != null, FileAssetEntity::getCompanyId, companyId)
+                .eq(FileAssetEntity::getDeleted, 0)
+                .orderByDesc(FileAssetEntity::getId)
+                .last("LIMIT 1"));
+        if (blankAsset == null || !StringUtils.hasText(blankAsset.getObjectKey())) {
+            return null;
+        }
+        Path blankPath = objectStorageService.downloadToTemp(blankAsset.getBucketName(), blankAsset.getObjectKey(), blankAsset.getFileName());
+        FileAssetEntity previewAsset = fileAssetMapper.selectOne(new LambdaQueryWrapper<FileAssetEntity>()
+                .eq(FileAssetEntity::getBizType, "TEMPLATE_EXTRACT_PREVIEW")
+                .eq(FileAssetEntity::getFileHash, extractId + "-preview")
+                .eq(companyId != null, FileAssetEntity::getCompanyId, companyId)
+                .eq(FileAssetEntity::getDeleted, 0)
+                .orderByDesc(FileAssetEntity::getId)
+                .last("LIMIT 1"));
         if (previewAsset == null || !StringUtils.hasText(previewAsset.getObjectKey())) {
             return new BlankTemplateFile(blankAsset.getFileName(), blankPath);
         }
@@ -717,9 +844,12 @@ public class UserTemplateServiceImpl implements UserTemplateService {
     }
 
     private TemplateEntity createTemplate(TemplateExtractSaveRequest request) {
+        return createTemplate(request, currentCompanyId(), currentUserId());
+    }
+
+    private TemplateEntity createTemplate(TemplateExtractSaveRequest request, Long companyId, Long userId) {
         TemplateEntity entity = new TemplateEntity();
-        Long userId = currentUserId();
-        entity.setCompanyId(currentCompanyId());
+        entity.setCompanyId(companyId);
         entity.setTemplateCode("TPL_" + System.currentTimeMillis());
         entity.setTemplateName(limitText(safeText(request.templateName(), stripExtension(safeFileName(request.fileName()))), 128));
         entity.setTemplateType(limitText(safeText(request.templateType(), "BILL_DOCX"), 32));
@@ -734,15 +864,34 @@ public class UserTemplateServiceImpl implements UserTemplateService {
         return entity;
     }
 
-    private TemplateVersionEntity createTemplateVersion(Long templateId, Long fileAssetId, List<TemplateFieldMappingSaveRequest> mappings) {
+    private boolean isPreviewOnlyTemplate(TemplateExtractSaveRequest request) {
+        return "BILL_PREVIEW".equalsIgnoreCase(safeText(request.templateType(), ""));
+    }
+
+    private TemplateVersionEntity createTemplateVersion(
+            Long templateId,
+            Long fileAssetId,
+            List<TemplateFieldMappingSaveRequest> mappings,
+            String contentFormat
+    ) {
+        return createTemplateVersion(templateId, fileAssetId, mappings, contentFormat, currentUserId());
+    }
+
+    private TemplateVersionEntity createTemplateVersion(
+            Long templateId,
+            Long fileAssetId,
+            List<TemplateFieldMappingSaveRequest> mappings,
+            String contentFormat,
+            Long userId
+    ) {
         TemplateVersionEntity entity = new TemplateVersionEntity();
         entity.setTemplateId(templateId);
         entity.setVersionNo(1);
         entity.setFileAssetId(fileAssetId);
-        entity.setContentFormat("DOCX");
+        entity.setContentFormat(limitText(safeText(contentFormat, "DOCX"), 32));
         entity.setFieldSchemaJson(toTemplateSchemaJson(mappings));
         entity.setStatus(1);
-        entity.setCreatedBy(currentUserId());
+        entity.setCreatedBy(userId);
         entity.setCreatedAt(LocalDateTime.now());
         templateVersionMapper.insert(entity);
         return entity;

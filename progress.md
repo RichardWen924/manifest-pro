@@ -157,6 +157,46 @@
   - `zfile/sql/V4__bill_parse_task_async_enhance.sql`
   - `zfile/sql/V5__async_task_extensions.sql`
 
+### Phase 11: MinIO Compose & Async Save Planning
+- **Status:** complete
+- Actions taken:
+  - 复盘当前根目录 `docker-compose.yml`，确认目前只纳入了 `rabbitmq`，还未纳入 `minio`。
+  - 复盘 `service-user` / `service-llm-task` 的对象存储配置，确认应用层已经具备 MinIO 配置项，但本地启动形态尚未统一到 compose。
+  - 明确用户目标为：
+    - 把 MinIO 加入与 RabbitMQ 相同的 compose 项目分组；
+    - 将模板保存纳入 RabbitMQ 异步任务中心。
+  - 将后续实施拆成两阶段：
+    - `Phase 11`：基础设施统一，扩展 `docker-compose.yml` 与本地配置；
+    - `Phase 12`：模板保存异步化，新增 `TEMPLATE_SAVE` 任务、队列、查询接口与验证路径。
+- Files created/modified:
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+### Phase 12: MinIO Compose Consolidation & Async Template Save
+- **Status:** complete
+- Actions taken:
+  - 将 MinIO 纳入根目录 `docker-compose.yml`，并通过 external volume 复用旧 `minio_new` 的数据卷，旧容器仅停止不删除。
+  - 为 compose MinIO 增加健康检查、控制台端口、bucket 初始化服务，并更新本地联调文档。
+  - 将 `service-user` 与 `service-llm-task` 的 dev 对象存储默认值统一为 MinIO。
+  - 新增 `TEMPLATE_SAVE` 队列、交换机、路由键、消息模型、发布器、消费者、任务服务与任务状态 VO。
+  - `service-user` 通过 Feign 将模板保存任务提交和查询代理到 `service-llm-task`，保存消费职责收敛到 `service-llm-task`。
+  - 将 `POST /user/templates/extract/save` 改为返回保存任务号，并新增 `GET /user/templates/extract/save/tasks/{taskNo}` 查询接口。
+  - 前端保存按钮改为提交保存任务后轮询状态，成功后刷新模板列表，失败时展示消费端错误。
+  - 修复异步消费线程没有 HTTP 请求上下文时可能使用默认公司/用户的问题，保存内核改为显式接收 `companyId/userId`。
+  - 为 Mockito 本地测试增加 subclass mock maker 配置，规避当前 JDK 21 环境下 inline attach 失败。
+- Files created/modified:
+  - `docker-compose.yml`
+  - `docs/backend-rabbitmq-local.md`
+  - `service/service-user/src/main/java/com/manifestreader/user/service/impl/TemplateSaveTaskServiceImpl.java`
+  - `service/service-user/src/main/java/com/manifestreader/user/service/impl/RemoteTemplateSaveTaskService.java`
+  - `service/service-user/src/main/java/com/manifestreader/user/controller/template/UserTemplateController.java`
+  - `service/service-user/src/main/java/com/manifestreader/user/feign/LlmTaskFeignClient.java`
+  - `service/service-llm-task/src/main/java/com/manifestreader/user/service/impl/TemplateSaveTaskServiceImpl.java`
+  - `service/service-llm-task/src/main/java/com/manifestreader/llmtask/controller/InternalTemplateTaskController.java`
+  - `frontend/client/src/App.vue`
+  - `frontend/client/src/api/clientApi.js`
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
@@ -182,6 +222,20 @@
 | Phase D 模板提取提交 | `curl -s -X POST ... http://127.0.0.1:8082/user/templates/extract/tasks` | 请求由 `service-user` 代理到 `service-llm-task` 并成功提交任务 | 返回 `taskNo=TPL-EXTRACT-20260430180534-affc`，状态 `PENDING` | ✓ |
 | Phase D 模板提取查询 | `curl -s ... http://127.0.0.1:8082/user/templates/extract/tasks/TPL-EXTRACT-20260430180534-affc` | 可经由 `service-user` 查询远端任务状态 | 返回状态 `RUNNING` | ✓ |
 | RabbitMQ 队列消费观测 | `curl -s -u guest:guest http://127.0.0.1:15672/api/queues/%2F/template.extract.queue` | 提交后可见 `publish/deliver` 增加且存在活跃消费者 | `publish=2`、`deliver=2`、`messages_unacknowledged=1` | ✓ |
+| Compose 现状检查 | `sed -n '1,240p' docker-compose.yml` | 确认本地基础设施当前纳管范围 | 当前仅包含 `rabbitmq` service | ✓ |
+| MinIO 配置现状检查 | `rg -n "MINIO_|storage:" ...` | 确认应用是否已有 MinIO 接入参数 | `service-user` 已具备 MinIO 配置项，compose 尚未统一 | ✓ |
+| MinIO Compose 配置检查 | `docker compose config` | RabbitMQ 与 MinIO compose 配置合法 | 校验通过 | ✓ |
+| MinIO Compose 启动 | `docker compose up -d minio minio-init` | MinIO 与初始化任务可启动 | `manifest-reader-minio` healthy，bucket 初始化成功 | ✓ |
+| MinIO 健康检查 | `curl -s -I http://127.0.0.1:9000/minio/health/live` | 返回 200 | 返回 `HTTP/1.1 200 OK` | ✓ |
+| MinIO 控制台检查 | `curl -s -I http://127.0.0.1:9001` | 控制台可访问 | 返回 `HTTP/1.1 200 OK` | ✓ |
+| 异步保存后端编译 | `./mvnw -pl service/service-user,service/service-llm-task -am -DskipTests compile` | 两个后端模块编译通过 | 构建成功 | ✓ |
+| 异步保存单测 | `./mvnw -pl service/service-user -am -Dtest=TemplateSaveTaskServiceImplTest -Dsurefire.failIfNoSpecifiedTests=false test` | 提交任务与消费成功测试通过 | 2 个测试全部通过 | ✓ |
+| 前端构建 | `npm run build` in `frontend/client` | 轮询改造后可打包 | Vite build 成功 | ✓ |
+| 双模块打包复验 | `./mvnw -pl service/service-user,service/service-llm-task -am -DskipTests package` | 两个服务都能生成可执行 JAR | 构建成功 | ✓ |
+| 异步保存服务启动 | `java -jar ...service-llm-task... --server.port=18084` 与 `java -jar ...service-user... --server.port=18082` | 两个服务可本地启动 | 健康检查均返回 `{"status":"UP"}` | ✓ |
+| 异步保存 HTTP 联调 | `POST http://127.0.0.1:18082/user/templates/extract/save` | 经 user -> Feign -> llm-task 提交保存任务 | 返回 `TPL-SAVE-20260501122153-dd94484d`，状态 `PENDING` | ✓ |
+| 异步保存任务查询 | `GET http://127.0.0.1:18082/user/templates/extract/save/tasks/TPL-SAVE-20260501122153-dd94484d` | 消费完成后返回成功结果 | 返回 `SUCCESS`，生成 `templateId=4024`、`templateVersionId=4124` | ✓ |
+| RabbitMQ 保存队列观测 | `curl -s -u guest:guest http://127.0.0.1:15672/api/queues/%2F/template.save.queue` | 可见消息投递、消费和 ACK | `publish=1`、`deliver=1`、`ack=1`、`messages=0`、`consumers=1` | ✓ |
 
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |
@@ -197,12 +251,17 @@
 | 2026-04-30 17:41:03 CST | 本地库 `bl_parse_task` 缺少 `task_type` 导致模板提取请求在发 MQ 前插入失败 | 1 | 使用 JDBC 执行 `V4` 与 `V5` 迁移，补齐字段后请求可成功入队 |
 | 2026-04-30 18:02:14 CST | `service-llm-task` 编译缺少 MinIO 依赖 | 1 | 为新模块补充 `io.minio:minio` 依赖后重新编译通过 |
 | 2026-04-30 18:03:21 CST | `service-llm-task` 仅扫描 `com.manifestreader.llmtask`，导致任务实现和 Mapper 无法注入 | 1 | 将 `scanBasePackages` 扩大到 `com.manifestreader` 后服务成功启动 |
+| 2026-04-30 19:xx:xx CST | 用户希望“MinIO 和 RabbitMQ 放到一个 container” | 1 | 规划时改为“同一 compose 项目、不同 container”的推荐方案，兼顾分组体验与运维合理性 |
+| 2026-05-01 11:xx:xx CST | `minio_new` 独立容器占用 `9000/9001`，导致 compose MinIO 启动失败 | 1 | 停止旧容器，compose MinIO 复用旧数据卷并成功健康启动 |
+| 2026-05-01 12:06:xx CST | Mockito inline mock maker 在当前 Oracle JDK 21 环境无法 attach | 2 | 增加 `src/test/resources/mockito-extensions/org.mockito.plugins.MockMaker`，切换为 subclass mock maker 后单测通过 |
+| 2026-05-01 12:07:xx CST | `UserTemplateControllerTest` 构造器参数未同步新增的 `TemplateSaveTaskService` | 1 | 补充 mock 参数后测试编译通过 |
+| 2026-05-01 12:10:xx CST | 沙箱内直接启动 Web 服务绑定 18084 端口失败，提示 `Operation not permitted` | 1 | 按权限流程请求提升后启动成功 |
 
 ## 5-Question Reboot Check
 | Question | Answer |
 |----------|--------|
 | Where am I? | RabbitMQ 本地部署、三条异步任务链路，以及 `service-llm-task` 微服务拆分第一版都已完成并联调通过 |
-| Where am I going? | 下一步继续收敛共享代码、补齐 `service-admin` 对任务中心的调用，并清理跨服务复制代码 |
+| Where am I going? | 下一步先把 MinIO 纳入同一 compose 项目，再把模板保存改造成 `TEMPLATE_SAVE` 异步任务 |
 | What's the goal? | 将航运主业务逐步改造成带 Redis 与 MQ 的消息驱动架构，并最终沉淀成独立任务中心服务 |
-| What have I learned? | 统一任务模型能支撑平滑服务拆分，而先修复数据库迁移和启动边界，再拆 Feign/消费职责，会显著降低微服务演进风险 |
-| What have I done? | 已完成本地 MQ 部署、SQL 迁移修复、模板导出/提取异步化、`service-llm-task` 拆分、双服务编译打包和 Feign+MQ 联调验证 |
+| What have I learned? | 基础设施层面的“同一 compose 项目”与“同一 container”不是一回事；前者适合统一管理，后者反而不利于 RabbitMQ/MinIO 的独立运维 |
+| What have I done? | 已完成本轮计划更新，把 MinIO compose 纳管和模板保存异步化拆成独立后续阶段 |

@@ -9,6 +9,7 @@ import com.manifestreader.user.model.vo.BlankTemplateFile;
 import com.manifestreader.user.model.vo.ExportedTemplateFile;
 import com.manifestreader.user.service.TemplateExtractTaskService;
 import com.manifestreader.user.service.TemplateExportTaskService;
+import com.manifestreader.user.service.TemplateSaveTaskService;
 import com.manifestreader.user.service.UserTemplateService;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -35,13 +36,16 @@ class UserTemplateControllerTest {
     @Mock
     private TemplateExportTaskService templateExportTaskService;
 
+    @Mock
+    private TemplateSaveTaskService templateSaveTaskService;
+
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
         mockMvc = MockMvcBuilders.standaloneSetup(
-                new UserTemplateController(templateService, templateExtractTaskService, templateExportTaskService)
+                new UserTemplateController(templateService, templateExtractTaskService, templateExportTaskService, templateSaveTaskService)
         ).build();
     }
 

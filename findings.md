@@ -16,6 +16,11 @@
 - 仓库中未见测试代码，说明后续实施要把验证方案显式纳入规划。
 - 第一阶段最适合落地的改造点是 `service-user` 的提单解析链路，因为它本身已经依赖 Dify 和文件上传，天然具备异步化价值。
 - 将“任务源文件”从本地临时路径改成 `file_asset + object storage` 持久化引用后，异步消费不再依赖提交请求所在实例的本地磁盘。
+- 当前根目录 `docker-compose.yml` 只纳入了 `RabbitMQ`，`MinIO` 仍是通过应用配置预留，未统一进同一 compose 项目。
+- 当前“模板保存”接口 `POST /user/templates/extract/save` 仍为同步保存，不会产生 RabbitMQ 消息。
+- Docker Desktop 中当前 compose 项目分组已经存在 `manifestreader -> rabbitmq`，用户希望 MinIO 也出现在同一分组下并列管理。
+- MinIO 已被纳入根目录 compose 项目，当前 `manifest-reader-minio` 与 `manifest-reader-rabbitmq` 均处于 healthy 状态。
+- 模板保存已纳入 `TEMPLATE_SAVE` 异步任务，前端提交后轮询任务状态，不再等待同步保存完成。
 
 ## Technical Decisions
 | Decision | Rationale |
@@ -35,6 +40,11 @@
 | 空白模板、预览文件、导出文件都落成 `file_asset + object storage` | 避免结果只存在内存或本地临时目录，支持异步消费和后续跨服务读取 |
 | Phase D 先采用 `Feign + 独立 task service + RabbitMQ`，暂不引入 Dubbo | 当前项目仍以 HTTP 控制面 + MQ 异步执行面为主，复杂度更可控 |
 | `service-user` 仅保留任务入口、查询和文件下载编排，MQ listener 收敛到 `service-llm-task` | 先把高并发调用和 LLM 负载集中到独立服务，降低 `service-user` 职责膨胀 |
+| MinIO 统一纳入根目录 `docker-compose.yml`，但保持与 RabbitMQ 分离的独立 container | 统一项目分组和启动体验，同时避免把两个基础设施进程混塞进一个 container |
+| 模板保存异步化继续复用 `bl_parse_task` 任务中心，而不是新起第二套任务表 | 可以沿用已有任务状态、消息发布、失败重试和查询模式 |
+| `TEMPLATE_SAVE` 任务需要区分 `BILL_DOCX` 与 `BILL_PREVIEW` 两种保存策略 | 一类依赖 DOCX 资产，一类只需保存字段映射与预览资产，不能混用同一强约束 |
+| 异步保存消费端显式传递 `companyId/userId` 到保存内核 | MQ 消费线程没有 HTTP 请求上下文，不能依赖请求头 fallback |
+| `service-user` 只负责保存任务入口和查询，`service-llm-task` 负责保存任务投递与消费 | 保持用户服务轻量，将 LLM/模板重任务集中到任务服务 |
 
 ## Issues Encountered
 | Issue | Resolution |
@@ -47,6 +57,9 @@
 | 模板提取链路原有保存模板逻辑只认内存缓存中的 `extractId` | 已让保存逻辑支持从异步任务结果回退取数，确保 `taskNo` 也能走完整闭环 |
 | 本地数据库未执行最新迁移，导致异步模板提取在入库阶段失败而不是 MQ 阶段失败 | 已执行 `V4__bill_parse_task_async_enhance.sql` 和 `V5__async_task_extensions.sql`，现在可正常提交并入队 |
 | `service-llm-task` 为了尽快完成拆分，当前复用了部分 `service-user` 代码到新模块，存在后续收敛共享库的空间 | 第一版目标是先打通微服务边界和联调链路，后续再考虑抽取 `task-core` 或共享 starter |
+| 模板保存同步逻辑在 `BILL_PREVIEW` 场景下曾因没有 DOCX 资产而保存失败 | 已通过生成轻量预览 JSON 资产兜底修复，同步逻辑已可用，为异步化提供了可复用保存内核 |
+| 旧 `minio_new` 容器与 compose MinIO 端口冲突 | 已停止旧容器但保留数据，compose MinIO 使用旧 external volume 接管数据 |
+| 本机 Mockito inline mock maker 无法 attach 到 Oracle JDK 21 VM | 已在 `service-user` 测试资源中切换为 subclass mock maker，恢复本地测试稳定性 |
 
 ## Resources
 - 项目根目录：`/Users/richard/CodeFile/Project/manifestReader`
@@ -70,6 +83,9 @@
   - `/Users/richard/CodeFile/Project/manifestReader/service/service-llm-task/src/main/java/com/manifestreader/llmtask/controller/InternalTemplateTaskController.java`
   - `/Users/richard/CodeFile/Project/manifestReader/service/service-llm-task/src/main/java/com/manifestreader/llmtask/controller/InternalBillTaskController.java`
   - `/Users/richard/CodeFile/Project/manifestReader/service/service-user/src/main/java/com/manifestreader/user/feign/LlmTaskFeignClient.java`
+  - `/Users/richard/CodeFile/Project/manifestReader/service/service-user/src/main/java/com/manifestreader/user/service/impl/RemoteTemplateSaveTaskService.java`
+  - `/Users/richard/CodeFile/Project/manifestReader/service/service-llm-task/src/main/java/com/manifestreader/user/service/impl/TemplateSaveTaskServiceImpl.java`
+  - `/Users/richard/CodeFile/Project/manifestReader/frontend/client/src/App.vue`
 
 ## Visual/Browser Findings
 - 本轮未使用浏览器或图像资料。

@@ -27,6 +27,8 @@ manifest:
       listener-enabled: ${TEMPLATE_EXPORT_LISTENER_ENABLED:false}
     template-extract:
       listener-enabled: ${TEMPLATE_EXTRACT_LISTENER_ENABLED:false}
+    template-save:
+      listener-enabled: ${TEMPLATE_SAVE_LISTENER_ENABLED:false}
   user:
     mybatis:
       enabled: ${USER_MYBATIS_ENABLED:true}

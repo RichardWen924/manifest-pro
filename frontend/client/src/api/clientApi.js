@@ -184,6 +184,10 @@ export async function saveGeneratedTemplate(payload) {
   });
 }
 
+export async function getTemplateSaveTask(taskNo) {
+  return request(USER_BASE, `/templates/extract/save/tasks/${encodeURIComponent(taskNo)}`);
+}
+
 export async function exportTemplateFile({ templateId, outputFormat = "DOCX", file }) {
   const formData = new FormData();
   formData.append("templateId", templateId);

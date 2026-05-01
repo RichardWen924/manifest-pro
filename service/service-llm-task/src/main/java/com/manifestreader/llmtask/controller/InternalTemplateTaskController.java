@@ -1,16 +1,22 @@
 package com.manifestreader.llmtask.controller;
 
 import com.manifestreader.common.result.R;
+import com.manifestreader.user.model.dto.TemplateExtractSaveRequest;
 import com.manifestreader.user.model.vo.TemplateExportTaskSubmitVO;
 import com.manifestreader.user.model.vo.TemplateExportTaskVO;
 import com.manifestreader.user.model.vo.TemplateExtractTaskSubmitVO;
 import com.manifestreader.user.model.vo.TemplateExtractTaskVO;
+import com.manifestreader.user.model.vo.TemplateSaveTaskSubmitVO;
+import com.manifestreader.user.model.vo.TemplateSaveTaskVO;
 import com.manifestreader.user.service.TemplateExportTaskService;
 import com.manifestreader.user.service.TemplateExtractTaskService;
+import com.manifestreader.user.service.TemplateSaveTaskService;
+import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -23,13 +29,16 @@ public class InternalTemplateTaskController {
 
     private final TemplateExtractTaskService templateExtractTaskService;
     private final TemplateExportTaskService templateExportTaskService;
+    private final TemplateSaveTaskService templateSaveTaskService;
 
     public InternalTemplateTaskController(
             TemplateExtractTaskService templateExtractTaskService,
-            TemplateExportTaskService templateExportTaskService
+            TemplateExportTaskService templateExportTaskService,
+            TemplateSaveTaskService templateSaveTaskService
     ) {
         this.templateExtractTaskService = templateExtractTaskService;
         this.templateExportTaskService = templateExportTaskService;
+        this.templateSaveTaskService = templateSaveTaskService;
     }
 
     @PostMapping(value = "/extract/tasks", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -40,6 +49,16 @@ public class InternalTemplateTaskController {
     @GetMapping("/extract/tasks/{taskNo}")
     public R<TemplateExtractTaskVO> getExtractTask(@PathVariable String taskNo) {
         return R.ok(templateExtractTaskService.getTask(taskNo));
+    }
+
+    @PostMapping(value = "/save/tasks", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public R<TemplateSaveTaskSubmitVO> submitSaveTask(@Valid @RequestBody TemplateExtractSaveRequest request) {
+        return R.ok(templateSaveTaskService.submitTask(request));
+    }
+
+    @GetMapping("/save/tasks/{taskNo}")
+    public R<TemplateSaveTaskVO> getSaveTask(@PathVariable String taskNo) {
+        return R.ok(templateSaveTaskService.getTask(taskNo));
     }
 
     @PostMapping(value = "/export/tasks", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

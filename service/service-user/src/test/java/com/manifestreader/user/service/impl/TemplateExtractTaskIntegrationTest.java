@@ -323,4 +323,50 @@ class TemplateExtractTaskIntegrationTest {
         org.assertj.core.api.Assertions.assertThat(versionCount).isEqualTo(1);
         org.assertj.core.api.Assertions.assertThat(mappingCount).isEqualTo(1);
     }
+
+    @Test
+    void previewOnlyTemplateCanBeSavedWithoutDocxAsset() throws Exception {
+        TemplateExtractSaveRequest saveRequest = new TemplateExtractSaveRequest(
+                "preview-only-extract-id",
+                "preview-source.xlsx",
+                true,
+                "Preview Template",
+                "BILL_PREVIEW",
+                List.of(new com.manifestreader.user.model.dto.TemplateFieldMappingSaveRequest(
+                        "提单号",
+                        "bl_no",
+                        "STRING",
+                        "提单号",
+                        1
+                )),
+                "raw-preview-text"
+        );
+
+        MvcResult saveResult = mockMvc.perform(post("/user/templates/extract/save")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsBytes(saveRequest))
+                        .header("X-Company-Id", "2")
+                        .header("X-User-Id", "3")
+                        .header("X-Trace-Id", "trace-template-preview-save-001"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode saveJson = objectMapper.readTree(saveResult.getResponse().getContentAsString()).path("data");
+        org.assertj.core.api.Assertions.assertThat(saveJson.path("templateSaved").asBoolean()).isTrue();
+        org.assertj.core.api.Assertions.assertThat(saveJson.path("message").asText()).contains("预览模板");
+
+        Integer templateCount = jdbcTemplate.queryForObject("select count(1) from tpl_template", Integer.class);
+        Integer versionCount = jdbcTemplate.queryForObject("select count(1) from tpl_template_version", Integer.class);
+        Integer mappingCount = jdbcTemplate.queryForObject("select count(1) from tpl_field_mapping", Integer.class);
+        String contentFormat = jdbcTemplate.queryForObject("select content_format from tpl_template_version limit 1", String.class);
+        Long fileAssetId = jdbcTemplate.queryForObject("select file_asset_id from tpl_template_version limit 1", Long.class);
+        String assetContentType = jdbcTemplate.queryForObject("select content_type from file_asset limit 1", String.class);
+
+        org.assertj.core.api.Assertions.assertThat(templateCount).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(versionCount).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(mappingCount).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(contentFormat).isEqualTo("PREVIEW");
+        org.assertj.core.api.Assertions.assertThat(fileAssetId).isNotNull();
+        org.assertj.core.api.Assertions.assertThat(assetContentType).isEqualTo("application/json");
+    }
 }

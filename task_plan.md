@@ -4,7 +4,7 @@
 为 `manifestReader` 制定一份围绕主业务链路的消息驱动改造计划，使项目在保留航运单证业务连续性的前提下，引入 `Redis`、`RabbitMQ`、`Elasticsearch`、`Kibana` 和高并发设计能力。
 
 ## Current Phase
-Phase 10
+Phase 12 complete
 
 ## Phases
 ### Phase 1: Requirements & Discovery
@@ -38,6 +38,21 @@ Phase 10
 - [x] 向用户交付规划摘要与下一步建议
 - **Status:** complete
 
+### Phase 11: MinIO Compose Consolidation Plan
+- [x] 将 MinIO 纳入根目录 `docker-compose.yml`
+- [x] 统一 RabbitMQ / MinIO 的本地启动、健康检查和持久化卷
+- [x] 统一 `service-user` / `service-llm-task` 的 dev 环境对象存储配置
+- [x] 补充本地联调文档与验证步骤
+- **Status:** complete
+
+### Phase 12: Async Template Save Plan
+- [x] 将 `POST /user/templates/extract/save` 改为异步任务提交
+- [x] 为模板保存新增 `TEMPLATE_SAVE` 任务类型、消息模型和队列
+- [x] 将模板定义、版本、字段映射、文件资产写入迁移到消费端
+- [x] 为 `DOCX` / `PREVIEW` 两类模板定义不同的异步保存策略
+- [x] 新增任务状态查询接口与前端轮询方案
+- **Status:** complete
+
 ## Key Questions
 1. 如何在不破坏现有业务的前提下，把同步链路改成消息驱动？
 2. Redis 在本项目里最值得承担哪些职责，而不是只作为“技术点”出现？
@@ -64,10 +79,14 @@ Phase 10
 | `-pl service/service-user` 未联动编译 `model` 新实体 | 1 | 使用 `-am` 联动依赖模块一起编译测试 |
 | `BaseMapper.insert` 测试断言命中重载歧义 | 1 | 在 `argThat` 中显式标注 `BlParseTaskEntity` 类型 |
 | Testcontainers 集成测试首次拉取 RabbitMQ 镜像时遇到 Docker Registry `EOF` | 1 | 调整为更轻量的本地连调路径，保留 MySQL/Redis 容器并用测试注入替代外部 Rabbit 投递 |
+| 独立 `minio_new` 容器占用 `9000/9001` 端口 | 1 | 停止旧容器但保留数据卷，compose MinIO 复用旧 volume 并健康启动 |
+| Mockito inline mock maker 在本机 JDK 21 无法 attach | 1 | 增加测试资源切换到 subclass mock maker，目标单测通过 |
 
 ## Notes
 - 当前已完成 RabbitMQ 本地部署基建，支持开发环境快速启停与管理台访问。
 - 当前已完成三条消息驱动链路：提单异步解析、模板异步导出、模板异步提取。
 - 模板提取已支持从异步任务结果下载空白模板、预览模板，并直接保存为正式模板定义。
 - 当前已完成 Phase D 第一版：新增 `service-llm-task` 独立微服务，`service-user` 通过 Feign 转发异步任务提交与状态查询。
-- 下一轮可继续收敛共享代码边界，并把 `service-admin` 也接到 `service-llm-task` 任务中心。
+- 当前已完成基础设施线：MinIO 与 RabbitMQ 统一纳入根目录 compose 项目，Docker Desktop 可在同一项目分组下管理。
+- 当前已完成业务异步线：模板保存纳入 `TEMPLATE_SAVE` 任务中心，形成“提取 -> 保存 -> 导出”完整异步链路。
+- 下一轮可进入 Redis 限流/任务热点缓存增强，或补充 RabbitMQ 死信、重试、补偿和监控指标。

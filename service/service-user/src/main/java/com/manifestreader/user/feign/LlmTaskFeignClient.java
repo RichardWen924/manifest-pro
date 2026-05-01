@@ -8,11 +8,15 @@ import com.manifestreader.user.model.vo.TemplateExportTaskSubmitVO;
 import com.manifestreader.user.model.vo.TemplateExportTaskVO;
 import com.manifestreader.user.model.vo.TemplateExtractTaskSubmitVO;
 import com.manifestreader.user.model.vo.TemplateExtractTaskVO;
+import com.manifestreader.user.model.dto.TemplateExtractSaveRequest;
+import com.manifestreader.user.model.vo.TemplateSaveTaskSubmitVO;
+import com.manifestreader.user.model.vo.TemplateSaveTaskVO;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -51,6 +55,22 @@ public interface LlmTaskFeignClient {
 
     @GetMapping("/internal/llm/templates/extract/tasks/{taskNo}")
     R<TemplateExtractTaskVO> getTemplateExtractTask(
+            @RequestHeader(HeaderConstants.COMPANY_ID) Long companyId,
+            @RequestHeader(HeaderConstants.USER_ID) Long userId,
+            @RequestHeader(HeaderConstants.TRACE_ID) String traceId,
+            @PathVariable("taskNo") String taskNo
+    );
+
+    @PostMapping(value = "/internal/llm/templates/save/tasks", consumes = MediaType.APPLICATION_JSON_VALUE)
+    R<TemplateSaveTaskSubmitVO> submitTemplateSaveTask(
+            @RequestHeader(HeaderConstants.COMPANY_ID) Long companyId,
+            @RequestHeader(HeaderConstants.USER_ID) Long userId,
+            @RequestHeader(HeaderConstants.TRACE_ID) String traceId,
+            @RequestBody TemplateExtractSaveRequest request
+    );
+
+    @GetMapping("/internal/llm/templates/save/tasks/{taskNo}")
+    R<TemplateSaveTaskVO> getTemplateSaveTask(
             @RequestHeader(HeaderConstants.COMPANY_ID) Long companyId,
             @RequestHeader(HeaderConstants.USER_ID) Long userId,
             @RequestHeader(HeaderConstants.TRACE_ID) String traceId,

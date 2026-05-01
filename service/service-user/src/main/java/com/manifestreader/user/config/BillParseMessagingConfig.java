@@ -23,6 +23,9 @@ public class BillParseMessagingConfig {
     public static final String TEMPLATE_EXTRACT_QUEUE = "template.extract.queue";
     public static final String TEMPLATE_EXTRACT_EXCHANGE = "template.extract.exchange";
     public static final String TEMPLATE_EXTRACT_ROUTING_KEY = "template.extract.route";
+    public static final String TEMPLATE_SAVE_QUEUE = "template.save.queue";
+    public static final String TEMPLATE_SAVE_EXCHANGE = "template.save.exchange";
+    public static final String TEMPLATE_SAVE_ROUTING_KEY = "template.save.route";
 
     @Bean
     public Queue billParseQueue() {
@@ -67,6 +70,21 @@ public class BillParseMessagingConfig {
     @Bean
     public Binding templateExtractBinding() {
         return BindingBuilder.bind(templateExtractQueue()).to(templateExtractExchange()).with(TEMPLATE_EXTRACT_ROUTING_KEY);
+    }
+
+    @Bean
+    public Queue templateSaveQueue() {
+        return new Queue(TEMPLATE_SAVE_QUEUE, true);
+    }
+
+    @Bean
+    public DirectExchange templateSaveExchange() {
+        return new DirectExchange(TEMPLATE_SAVE_EXCHANGE, true, false);
+    }
+
+    @Bean
+    public Binding templateSaveBinding() {
+        return BindingBuilder.bind(templateSaveQueue()).to(templateSaveExchange()).with(TEMPLATE_SAVE_ROUTING_KEY);
     }
 
     @Bean
