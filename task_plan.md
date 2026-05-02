@@ -4,7 +4,7 @@
 为 `manifestReader` 制定一份围绕主业务链路的消息驱动改造计划，使项目在保留航运单证业务连续性的前提下，引入 `Redis`、`RabbitMQ`、`Elasticsearch`、`Kibana` 和高并发设计能力。
 
 ## Current Phase
-Phase 14 complete
+Phase 15 complete
 
 ## Phases
 ### Phase 1: Requirements & Discovery
@@ -70,6 +70,15 @@ Phase 14 complete
 - [x] 使用真实保存任务验证 `service-user -> Nacos -> service-llm-task -> RabbitMQ` 链路
 - **Status:** complete
 
+### Phase 15: Service-wide Feign & Discovery Governance
+- [x] 将 `service-auth`、`service-admin` 纳入 Nacos Discovery
+- [x] 将网关默认路由从固定 HTTP 地址改为 `lb://` 服务发现路由
+- [x] 将 admin 侧空 Feign 接口补齐为真实 `AuthFeignClient` / `UserFeignClient`
+- [x] 新增 user 内部账单分页接口，供 admin 通过 Feign 查询用户侧业务数据
+- [x] 使用真实 HTTP 验证 `service-admin -> manifest-reader-user` Feign 链路
+- [x] 增加 Feign / Discovery 契约测试，防止后续退回固定地址或空接口
+- **Status:** complete
+
 ## Key Questions
 1. 如何在不破坏现有业务的前提下，把同步链路改成消息驱动？
 2. Redis 在本项目里最值得承担哪些职责，而不是只作为“技术点”出现？
@@ -93,6 +102,8 @@ Phase 14 complete
 | Nacos Config 使用 `${spring.application.name}-${spring.profiles.active}.yml` 作为 DataId | 与 Spring Cloud Alibaba 默认约定接近，便于后续多环境扩展 |
 | 本地 Nacos Config import 使用 `optional:` 并保留 classpath `dev.yml` | Nacos 不可用时仍能启动本地服务，避免配置中心成为开发单点阻塞 |
 | 本地 Nacos auth 关闭时，客户端用户名密码默认留空 | 避免客户端向未启用认证的 Nacos 发送默认用户导致无效鉴权噪声 |
+| 服务间同步调用统一优先使用 Feign + Nacos 服务名 | 让 admin/user/auth/llm-task 的控制面调用具备微服务拆分形态，避免写死本地端口 |
+| 高耗时 LLM 提取、导出、保存继续走 RabbitMQ 异步链路 | Feign 只负责提交任务和查询状态，避免突发流量直接压垮 LLM 处理链路 |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
@@ -117,4 +128,5 @@ Phase 14 complete
 - 当前已完成业务异步线：模板保存纳入 `TEMPLATE_SAVE` 任务中心，形成“提取 -> 保存 -> 导出”完整异步链路。
 - 当前已完成服务治理线第一步：Nacos 作为本地服务发现中心，`service-user` 可通过服务名调用 `service-llm-task`。
 - 当前已完成配置中心线第一步：五个后端服务的 `dev.yml` 已导入 Nacos Config，服务启动时可从 Nacos 拉取配置。
+- 当前已完成服务间 Feign 治理第一步：网关使用 Nacos 负载均衡路由，admin 可通过 Feign 调用 user/auth，user 可通过 Feign 调用 auth/llm-task。
 - 下一轮可进入 Redis 限流/任务热点缓存增强，或补充 RabbitMQ 死信、重试、补偿和监控指标。

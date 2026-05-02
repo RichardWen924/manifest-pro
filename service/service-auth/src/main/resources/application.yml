@@ -15,6 +15,15 @@ spring:
         file-extension: yml
         username: ${NACOS_USERNAME:}
         password: ${NACOS_PASSWORD:}
+      discovery:
+        enabled: ${NACOS_DISCOVERY_ENABLED:true}
+        register-enabled: ${NACOS_REGISTER_ENABLED:true}
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+        namespace: ${NACOS_NAMESPACE:}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+        ip: ${NACOS_DISCOVERY_IP:}
+        username: ${NACOS_USERNAME:}
+        password: ${NACOS_PASSWORD:}
 
 server:
   port: 8083

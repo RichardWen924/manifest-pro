@@ -250,6 +250,37 @@
   - `findings.md`
   - `progress.md`
 
+### Phase 15: Service-wide Feign & Discovery Governance
+- **Status:** complete
+- Actions taken:
+  - 为 `service-auth`、`service-admin` 增加 Nacos Discovery 与 LoadBalancer 依赖。
+  - 将 `gateway` 默认后端路由调整为 `lb://manifest-reader-auth`、`lb://manifest-reader-admin`、`lb://manifest-reader-user`。
+  - 将 admin 侧 `AuthFeignClient` / `UserFeignClient` 从空接口补齐为真实服务名 Feign 客户端。
+  - 新增 `service-user` 内部账单分页接口 `/internal/user/bills/page`，供 admin 通过 Feign 查询用户业务数据。
+  - 调整 `AdminUserServiceImpl.listUserBills`，从调用本地 mock 账单改为调用 `manifest-reader-user`。
+  - 清理 Nacos 中残留的旧 `service-user` / `service-llm-task` 实例，避免 LoadBalancer 随机打到旧进程。
+  - 通过真实 HTTP 验证 `service-admin -> Feign -> service-user` 链路返回成功。
+- Files created/modified:
+  - `gateway/pom.xml`
+  - `gateway/src/main/resources/application.yml`
+  - `gateway/src/test/java/com/manifestreader/gateway/GatewayRouteDiscoveryContractTest.java`
+  - `service/service-auth/pom.xml`
+  - `service/service-auth/src/main/resources/application.yml`
+  - `service/service-auth/src/test/java/com/manifest/auth/AuthDiscoveryContractTest.java`
+  - `service/service-admin/pom.xml`
+  - `service/service-admin/src/main/resources/application.yml`
+  - `service/service-admin/src/main/java/com/manifestreader/admin/feign/AuthFeignClient.java`
+  - `service/service-admin/src/main/java/com/manifestreader/admin/feign/UserFeignClient.java`
+  - `service/service-admin/src/main/java/com/manifestreader/admin/service/user/AdminUserServiceImpl.java`
+  - `service/service-admin/src/test/java/com/manifestreader/admin/feign/AdminFeignContractTest.java`
+  - `service/service-admin/src/test/java/com/manifestreader/admin/service/user/AdminUserServiceImplTest.java`
+  - `service/service-user/src/main/java/com/manifestreader/user/controller/internal/InternalUserBillController.java`
+  - `model/src/main/java/com/manifestreader/model/vo/BillSummaryVO.java`
+  - `docs/backend-rabbitmq-local.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
@@ -299,6 +330,12 @@
 | Nacos Config DataId 拉取 | `curl .../nacos/v1/cs/configs?dataId=manifest-reader-user-dev.yml&group=DEFAULT_GROUP` | 能返回已导入 YAML | 返回 `service-user` dev 配置内容 | ✓ |
 | Nacos Config 服务启动 | `java -jar ... --spring.profiles.active=dev` | 服务启动时加载 Nacos 配置 | `service-user` / `service-llm-task` 日志均出现 `Load config[...] success` | ✓ |
 | Nacos Config 后保存链路 | `POST /user/templates/extract/save` | 配置中心接入后异步保存仍成功 | `TPL-SAVE-20260501232648-847c6152` 最终 `SUCCESS` | ✓ |
+| Feign/Discovery 契约测试 | `./mvnw -pl gateway,service/service-admin,service/service-auth -am -Dtest=GatewayRouteDiscoveryContractTest,AdminFeignContractTest,AdminUserServiceImplTest,AuthDiscoveryContractTest -Dsurefire.failIfNoSpecifiedTests=false test` | 网关 lb 路由、admin Feign、auth discovery、admin 调 user 契约通过 | 5 个测试全部通过，构建成功 | ✓ |
+| 五服务打包复验 | `./mvnw -pl gateway,service/service-admin,service/service-auth,service/service-user,service/service-llm-task -am -DskipTests package` | Feign/Discovery 改造后仍能整体打包 | 构建成功 | ✓ |
+| Nacos user 实例清理 | `curl .../nacos/v1/ns/instance/list?serviceName=manifest-reader-user` | 仅保留本机健康 user 实例 | 仅 `127.0.0.1:18082`，healthy=true | ✓ |
+| Nacos llm-task 实例清理 | `curl .../nacos/v1/ns/instance/list?serviceName=manifest-reader-llm-task` | 仅保留本机健康 llm-task 实例 | 仅 `127.0.0.1:18084`，healthy=true | ✓ |
+| admin -> user Feign 冒烟 | `curl -s -i http://127.0.0.1:18081/admin/users/u-1001/bills` | 通过 Nacos 发现 user 并返回账单摘要 | `HTTP/1.1 200`，`success=true`，返回账单列表 | ✓ |
+| admin/user/auth 健康检查 | `curl /actuator/health` | 三个服务均健康 | 三个服务均返回 `{"status":"UP"}` | ✓ |
 
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |
@@ -319,6 +356,7 @@
 | 2026-05-01 12:06:xx CST | Mockito inline mock maker 在当前 Oracle JDK 21 环境无法 attach | 2 | 增加 `src/test/resources/mockito-extensions/org.mockito.plugins.MockMaker`，切换为 subclass mock maker 后单测通过 |
 | 2026-05-01 12:07:xx CST | `UserTemplateControllerTest` 构造器参数未同步新增的 `TemplateSaveTaskService` | 1 | 补充 mock 参数后测试编译通过 |
 | 2026-05-01 12:10:xx CST | 沙箱内直接启动 Web 服务绑定 18084 端口失败，提示 `Operation not permitted` | 1 | 按权限流程请求提升后启动成功 |
+| 2026-05-02 15:xx:xx CST | Feign 调用被 Nacos 旧实例污染，偶发 502/旧代码异常 | 1 | 停止旧 `service-user` / `service-llm-task` 进程，保留 `NACOS_DISCOVERY_IP=127.0.0.1` 启动的 `18082` / `18084` 实例 |
 
 ## 5-Question Reboot Check
 | Question | Answer |

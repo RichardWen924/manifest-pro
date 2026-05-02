@@ -29,15 +29,15 @@ spring:
         webflux:
           routes:
             - id: auth-service
-              uri: ${AUTH_SERVICE_URI:http://127.0.0.1:8083}
+              uri: ${AUTH_SERVICE_URI:lb://manifest-reader-auth}
               predicates:
                 - Path=/auth/**,/internal/auth/**
             - id: admin-service
-              uri: ${ADMIN_SERVICE_URI:http://127.0.0.1:8081}
+              uri: ${ADMIN_SERVICE_URI:lb://manifest-reader-admin}
               predicates:
                 - Path=/admin/**
             - id: user-service
-              uri: ${USER_SERVICE_URI:http://127.0.0.1:8082}
+              uri: ${USER_SERVICE_URI:lb://manifest-reader-user}
               predicates:
                 - Path=/user/**
 

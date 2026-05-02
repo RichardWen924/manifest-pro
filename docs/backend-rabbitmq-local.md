@@ -44,13 +44,31 @@ Nacos:
 
 ## Service Discovery
 
-`service-user`, `service-llm-task`, and `gateway` can register with Nacos in local development.
+`gateway`, `service-auth`, `service-admin`, `service-user`, and `service-llm-task` can register with Nacos in local development.
 
 Use `NACOS_SERVER_ADDR=127.0.0.1:8848` when starting services outside Docker. For local JVM-to-JVM calls on the same machine, also set `NACOS_DISCOVERY_IP=127.0.0.1` so Nacos registers loopback addresses instead of a LAN address.
 
 Leave `LLM_TASK_BASE_URL` empty to let `service-user` call `manifest-reader-llm-task` through Nacos discovery. Set `LLM_TASK_BASE_URL=http://127.0.0.1:18084` only when you want to bypass discovery for debugging.
 
 Local Nacos auth is disabled, so leave `NACOS_USERNAME` and `NACOS_PASSWORD` empty. Only set them when you enable `NACOS_AUTH_ENABLE=true` on the server.
+
+Service names used by Feign and gateway routes:
+
+- Gateway routes: `lb://manifest-reader-auth`, `lb://manifest-reader-admin`, `lb://manifest-reader-user`
+- Admin -> Auth: `manifest-reader-auth`
+- Admin -> User: `manifest-reader-user`
+- User -> Auth: `manifest-reader-auth`
+- User -> LLM Task: `manifest-reader-llm-task`
+
+High-cost LLM work should still be asynchronous. Feign is used for control-plane calls such as task submission, status query, identity lookup, and admin aggregation. RabbitMQ remains responsible for queueing extract/export/save workloads so traffic spikes do not overload the LLM workflow.
+
+If Feign calls are flaky, first check whether Nacos still has stale local instances:
+
+```bash
+curl -s 'http://127.0.0.1:8848/nacos/v1/ns/instance/list?serviceName=manifest-reader-user&groupName=DEFAULT_GROUP'
+```
+
+Stop old JVM processes or restart them with `NACOS_DISCOVERY_IP=127.0.0.1` until only reachable loopback instances remain.
 
 ## Nacos Config Center
 
@@ -106,4 +124,6 @@ docker compose ps rabbitmq minio nacos
 curl -u guest:guest http://127.0.0.1:15672/api/overview
 curl -f http://127.0.0.1:9000/minio/health/live
 curl -f http://127.0.0.1:8848/nacos/actuator/health
+curl -s 'http://127.0.0.1:8848/nacos/v1/ns/catalog/services?hasIpCount=true&withInstances=false&pageNo=1&pageSize=20'
+curl -s -i 'http://127.0.0.1:18081/admin/users/u-1001/bills'
 ```

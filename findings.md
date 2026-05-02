@@ -24,6 +24,8 @@
 - Nacos 已纳入根目录 compose 项目，用于本地服务发现和后续微服务治理演进。
 - 本地 JVM 启动时需要设置 `NACOS_DISCOVERY_IP=127.0.0.1`，否则 Nacos 可能注册 LAN IP，导致服务名调用出现 502。
 - 五个后端服务的 `dev.yml` 已导入本地 Nacos Config，DataId 统一为 `manifest-reader-<service>-dev.yml`。
+- `service-admin` 原先存在空 Feign 接口，管理端账单查询仍依赖本地 mock 数据，不是真正的跨服务调用。
+- Nacos 中如果残留旧实例或 LAN IP 实例，Spring Cloud LoadBalancer 会随机选中旧地址，表现为偶发 502 或 Feign 调用失败。
 
 ## Technical Decisions
 | Decision | Rationale |
@@ -54,6 +56,10 @@
 | `TEMPLATE_SAVE` 任务需要区分 `BILL_DOCX` 与 `BILL_PREVIEW` 两种保存策略 | 一类依赖 DOCX 资产，一类只需保存字段映射与预览资产，不能混用同一强约束 |
 | 异步保存消费端显式传递 `companyId/userId` 到保存内核 | MQ 消费线程没有 HTTP 请求上下文，不能依赖请求头 fallback |
 | `service-user` 只负责保存任务入口和查询，`service-llm-task` 负责保存任务投递与消费 | 保持用户服务轻量，将 LLM/模板重任务集中到任务服务 |
+| 服务间同步控制面调用统一使用 Feign + Nacos 服务名 | 避免服务之间写死本地端口，为后续独立部署、扩容和网关负载均衡打基础 |
+| `service-admin` 通过 `manifest-reader-user` Feign 查询用户账单摘要 | 管理端不再伪造用户侧业务数据，服务边界更清晰 |
+| 网关默认使用 `lb://manifest-reader-*` 路由 | 入口流量通过 Nacos 发现后端实例，后续可自然支持多实例 |
+| 异步重任务不改成同步 Feign 执行 | Feign 只提交任务和查状态，RabbitMQ 继续承担削峰、排队、重试和消费者隔离 |
 
 ## Issues Encountered
 | Issue | Resolution |
@@ -70,6 +76,7 @@
 | 旧 `minio_new` 容器与 compose MinIO 端口冲突 | 已停止旧容器但保留数据，compose MinIO 使用旧 external volume 接管数据 |
 | 本机 Mockito inline mock maker 无法 attach 到 Oracle JDK 21 VM | 已在 `service-user` 测试资源中切换为 subclass mock maker，恢复本地测试稳定性 |
 | 本地 Nacos auth 关闭但客户端默认用户名为 `nacos` 时出现用户不存在日志 | 已将 `NACOS_USERNAME` / `NACOS_PASSWORD` 默认值调整为空，仅认证开启时显式配置 |
+| 旧 `service-user` / `service-llm-task` 进程仍注册在 Nacos，导致 Feign 偶发打到旧实例失败 | 停止旧进程，仅保留 `127.0.0.1:18082` 与 `127.0.0.1:18084` 健康实例后，真实 Feign 调用恢复稳定 |
 
 ## Resources
 - 项目根目录：`/Users/richard/CodeFile/Project/manifestReader`

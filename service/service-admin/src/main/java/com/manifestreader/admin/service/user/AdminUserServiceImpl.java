@@ -1,9 +1,13 @@
 package com.manifestreader.admin.service.user;
 
+import com.manifestreader.admin.feign.UserFeignClient;
 import com.manifestreader.admin.model.dto.AdminUserRequest;
 import com.manifestreader.admin.model.vo.AdminUserBillVO;
 import com.manifestreader.admin.model.vo.AdminUserVO;
 import com.manifestreader.common.exception.BizException;
+import com.manifestreader.common.result.PageResult;
+import com.manifestreader.common.result.R;
+import com.manifestreader.model.vo.BillSummaryVO;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -22,8 +26,10 @@ public class AdminUserServiceImpl implements AdminUserService {
     private final AtomicLong idSequence = new AtomicLong(1004);
     private final Map<String, AdminUserVO> users = new ConcurrentHashMap<>();
     private final Map<String, List<AdminUserBillVO>> bills = new ConcurrentHashMap<>();
+    private final UserFeignClient userFeignClient;
 
-    public AdminUserServiceImpl() {
+    public AdminUserServiceImpl(UserFeignClient userFeignClient) {
+        this.userFeignClient = userFeignClient;
         seedUsers();
         seedBills();
     }
@@ -78,7 +84,14 @@ public class AdminUserServiceImpl implements AdminUserService {
     @Override
     public List<AdminUserBillVO> listUserBills(String userId) {
         ensureUserExists(userId);
-        return bills.getOrDefault(userId, Collections.emptyList());
+        R<PageResult<BillSummaryVO>> response = userFeignClient.pageBills(null, null, 1L, 20L);
+        if (response == null || !response.isSuccess() || response.getData() == null) {
+            String message = response == null ? "用户服务无响应" : response.getMessage();
+            throw new BizException("USER_SERVICE_UNAVAILABLE", message);
+        }
+        return response.getData().getRecords().stream()
+                .map(this::toAdminBill)
+                .toList();
     }
 
     private void seedUsers() {
@@ -155,6 +168,16 @@ public class AdminUserServiceImpl implements AdminUserService {
         bill.setPol(pol);
         bill.setPod(pod);
         bill.setStatus(status);
+        return bill;
+    }
+
+    private AdminUserBillVO toAdminBill(BillSummaryVO summary) {
+        AdminUserBillVO bill = new AdminUserBillVO();
+        bill.setBlNo(summary.blNo());
+        bill.setVesselVoyage(summary.vesselVoyage());
+        bill.setPol(summary.portOfLoading());
+        bill.setPod(summary.portOfDischarge());
+        bill.setStatus(summary.status());
         return bill;
     }
 }
