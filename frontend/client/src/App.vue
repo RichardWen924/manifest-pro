@@ -120,21 +120,20 @@
     </aside>
 
     <main class="workspace">
-      <header class="workspace-hero">
-        <div class="hero-copy-block">
+      <section v-if="currentView === 'overview'" class="module-scene">
+        <div class="module-intro">
           <p class="eyebrow">{{ currentMeta.eyebrow }}</p>
           <h1>{{ currentMeta.title }}</h1>
           <p v-if="currentMeta.description">{{ currentMeta.description }}</p>
-          <div class="hero-meta-strip" aria-label="Workspace summary">
-            <span v-for="item in clientQuickStats" :key="item.label" class="hero-meta-pill">
+          <div class="inline-stat-list" aria-label="Workspace summary">
+            <span v-for="item in clientQuickStats" :key="item.label" class="inline-stat">
               <strong>{{ item.value }}</strong>
               <small>{{ item.label }}</small>
             </span>
           </div>
         </div>
-      </header>
 
-      <section v-if="currentView === 'overview'" class="scene-grid">
+        <section class="scene-grid">
         <article class="metric-card dark">
           <span>已存提单</span>
           <strong>{{ savedBills.length }}</strong>
@@ -155,13 +154,21 @@
             <span></span>
           </div>
         </article>
+        </section>
       </section>
 
       <section v-if="currentView === 'bills'" class="panel-card">
         <div class="panel-title">
           <div>
+            <p class="eyebrow panel-eyebrow">{{ currentMeta.eyebrow }}</p>
             <h2>已存提单数据</h2>
             <p>支持分页、搜索、新增、编辑和删除。点击任一提单行展开完整字段预览。</p>
+            <div class="inline-stat-list panel-stat-list" aria-label="Workspace summary">
+              <span v-for="item in clientQuickStats" :key="item.label" class="inline-stat">
+                <strong>{{ item.value }}</strong>
+                <small>{{ item.label }}</small>
+              </span>
+            </div>
           </div>
           <div class="bill-actions">
             <button class="ghost-button" type="button" @click="resetBillFilters">重置</button>
@@ -272,7 +279,7 @@
             v-for="bill in savedBills"
             :key="bill.id"
             class="bill-row"
-            :class="{ expanded: selectedBillId === bill.id, checked: selectedBillIds.includes(bill.id) }"
+            :class="{ checked: selectedBillIds.includes(bill.id) }"
             role="listitem"
           >
             <div class="bill-row-main">
@@ -280,43 +287,28 @@
                 <input type="checkbox" :checked="selectedBillIds.includes(bill.id)" @change="toggleBillSelection(bill.id)" />
                 <span class="sr-only">选择 {{ bill.blNo }}</span>
               </label>
-              <button class="bill-summary" type="button" @click="toggleBill(bill.id)">
-                <span class="expand-indicator">{{ selectedBillId === bill.id ? "−" : "+" }}</span>
-                <span>
+              <button class="bill-grid-row" type="button" @click="openBillDialog(bill)">
+                <span class="bill-cell bill-cell-primary">
                   <small>提单号</small>
                   <strong>{{ bill.blNo }}</strong>
                 </span>
-                <span>
+                <span class="bill-cell">
                   <small>船名航次</small>
                   <strong>{{ bill.vessel }}</strong>
                 </span>
-                <span>
+                <span class="bill-cell">
                   <small>货运商品名称</small>
                   <strong>{{ bill.goodsName }}</strong>
                 </span>
-                <span>
+                <span class="bill-cell bill-cell-compact">
                   <small>数量</small>
                   <strong>{{ bill.quantity }}</strong>
                 </span>
-                <span class="pill">{{ bill.status }}</span>
+                <span class="bill-cell bill-cell-status">
+                  <small>状态</small>
+                  <span class="pill">{{ bill.status }}</span>
+                </span>
               </button>
-            </div>
-
-            <div v-if="selectedBillId === bill.id" class="bill-detail-panel">
-              <div class="row-actions">
-                <button class="secondary-button" type="button" @click="startEditBill(bill)">编辑</button>
-                <button class="danger-button" type="button" @click="removeBill(bill)">删除</button>
-              </div>
-              <div class="detail-grid">
-                <div v-for="field in bill.detailFields" :key="field.label" class="detail-field">
-                  <span>{{ field.label }}</span>
-                  <strong>{{ field.value }}</strong>
-                </div>
-              </div>
-              <div class="field-hint">
-                <span></span>
-                <p>展开区域展示完整字段。</p>
-              </div>
             </div>
           </article>
         </div>
@@ -328,9 +320,51 @@
             <button class="ghost-button" type="button" :disabled="billPage.current >= billTotalPages" @click="changeBillPage(1)">下一页</button>
           </div>
         </div>
+
+        <section
+          v-if="billDetailDialog.open && activeBillDetail"
+          class="bill-detail-dialog-backdrop"
+          @click.self="closeBillDialog"
+        >
+          <article class="bill-detail-dialog">
+            <header class="bill-detail-dialog-head">
+              <div>
+                <p class="eyebrow">Bill Detail</p>
+                <h2>{{ activeBillDetail.blNo }}</h2>
+                <span class="pill">{{ activeBillDetail.status }}</span>
+              </div>
+              <button class="ghost-button" type="button" @click="closeBillDialog">关闭</button>
+            </header>
+
+            <div class="detail-grid bill-detail-dialog-grid">
+              <div v-for="field in activeBillDetail.detailFields" :key="field.label" class="detail-field">
+                <span>{{ field.label }}</span>
+                <strong>{{ field.value }}</strong>
+              </div>
+            </div>
+
+            <footer class="bill-detail-dialog-actions">
+              <button class="secondary-button" type="button" @click="startEditBill(activeBillDetail)">编辑</button>
+              <button class="danger-button" type="button" @click="removeBill(activeBillDetail)">删除</button>
+              <button class="ghost-button" type="button" @click="closeBillDialog">关闭</button>
+            </footer>
+          </article>
+        </section>
       </section>
 
-      <section v-if="currentView === 'extract'" class="work-grid">
+      <section v-if="currentView === 'extract'" class="module-scene">
+        <div class="module-intro module-intro-compact">
+          <p class="eyebrow">{{ currentMeta.eyebrow }}</p>
+          <h2>{{ currentMeta.title }}</h2>
+          <p v-if="currentMeta.description">{{ currentMeta.description }}</p>
+          <div class="inline-stat-list" aria-label="Workspace summary">
+            <span v-for="item in clientQuickStats" :key="item.label" class="inline-stat">
+              <strong>{{ item.value }}</strong>
+              <small>{{ item.label }}</small>
+            </span>
+          </div>
+        </div>
+        <div class="work-grid">
         <article class="panel-card">
           <div class="panel-title compact">
             <h2>提单模板提取</h2>
@@ -374,14 +408,21 @@
           </div>
           <p v-else>上传文件后，这里会预览模板字段、置信度和可编辑映射。</p>
         </article>
-
+        </div>
       </section>
 
       <section v-if="currentView === 'templates'" class="panel-card">
         <div class="panel-title">
           <div>
+            <p class="eyebrow panel-eyebrow">{{ currentMeta.eyebrow }}</p>
             <h2>模板管理</h2>
             <p>管理已经保存的提单模板，查看存储位置、版本、字段数量和启用状态。</p>
+            <div class="inline-stat-list panel-stat-list" aria-label="Workspace summary">
+              <span v-for="item in clientQuickStats" :key="item.label" class="inline-stat">
+                <strong>{{ item.value }}</strong>
+                <small>{{ item.label }}</small>
+              </span>
+            </div>
           </div>
           <div class="bill-actions">
             <button class="ghost-button" type="button" @click="resetTemplateFilters">重置</button>
@@ -594,7 +635,19 @@
           </div>
         </article>
       </section>
-      <section v-if="currentView === 'export'" class="work-grid">
+      <section v-if="currentView === 'export'" class="module-scene">
+        <div class="module-intro module-intro-compact">
+          <p class="eyebrow">{{ currentMeta.eyebrow }}</p>
+          <h2>{{ currentMeta.title }}</h2>
+          <p v-if="currentMeta.description">{{ currentMeta.description }}</p>
+          <div class="inline-stat-list" aria-label="Workspace summary">
+            <span v-for="item in clientQuickStats" :key="item.label" class="inline-stat">
+              <strong>{{ item.value }}</strong>
+              <small>{{ item.label }}</small>
+            </span>
+          </div>
+        </div>
+        <div class="work-grid">
         <article class="panel-card">
           <div class="panel-title compact">
             <h2>按模板导出</h2>
@@ -652,6 +705,7 @@
             </div>
           </div>
         </article>
+        </div>
       </section>
 
       <section v-if="exportDialogOpen && selectedExportJob" class="extract-dialog-backdrop">
@@ -810,7 +864,6 @@ const session = reactive({
 
 const sidebarCollapsed = ref(false);
 const currentView = ref("overview");
-const selectedBillId = ref("BL-001");
 const selectedBillIds = ref([]);
 const extractFile = ref(null);
 const exportFile = ref(null);
@@ -862,6 +915,10 @@ const billEditor = reactive({
   mode: "create",
   editingId: null,
   error: "",
+});
+const billDetailDialog = reactive({
+  open: false,
+  billId: "",
 });
 
 const billForm = reactive(createEmptyBillForm());
@@ -1007,6 +1064,7 @@ const clientQuickStats = computed(() => [
   { label: "模板库", value: managedTemplates.value.length },
   { label: "导出队列", value: exportJobs.value.length },
 ]);
+const activeBillDetail = computed(() => savedBills.value.find((bill) => bill.id === billDetailDialog.billId));
 const billTotalPages = computed(() => Math.max(1, Math.ceil(billPage.total / billPage.size)));
 const templateTotalPages = computed(() => Math.max(1, Math.ceil(templatePage.total / templatePage.size)));
 const currentExtractFileKey = computed(() => (extractFile.value ? buildFileKey(extractFile.value) : ""));
@@ -1159,12 +1217,17 @@ async function loadBills() {
     billPage.current = Number(page?.current || billPage.current);
     billPage.size = Number(page?.size || billPage.size);
     billPage.total = Number(page?.total || 0);
-    selectedBillId.value = savedBills.value[0]?.id || "";
+    if (!savedBills.value.some((bill) => bill.id === billDetailDialog.billId)) {
+      closeBillDialog();
+    }
     syncBillSelectionWithCurrentPage();
     notify("提单数据已同步", "已读取 user-service 提单分页接口。", "backend");
   } catch (error) {
     savedBills.value = [...prototypeBills];
     billPage.total = savedBills.value.length;
+    if (!savedBills.value.some((bill) => bill.id === billDetailDialog.billId)) {
+      closeBillDialog();
+    }
     syncBillSelectionWithCurrentPage();
     notify("提单接口待检查", error.message || "已保留原型示例数据。", "error");
   }
@@ -1191,6 +1254,7 @@ function changeBillPage(step) {
 }
 
 function startCreateBill() {
+  closeBillDialog();
   Object.assign(billForm, createEmptyBillForm());
   billEditor.mode = "create";
   billEditor.editingId = null;
@@ -1199,6 +1263,7 @@ function startCreateBill() {
 }
 
 function startEditBill(bill) {
+  closeBillDialog();
   Object.assign(billForm, {
     blNo: bill.blNo,
     bookingNo: bill.bookingNo === "待补充" ? "" : bill.bookingNo,
@@ -1251,6 +1316,7 @@ async function submitBill() {
 
 async function removeBill(bill) {
   try {
+    closeBillDialog();
     await deleteBill(bill.id);
     selectedBillIds.value = selectedBillIds.value.filter((id) => id !== bill.id);
     notify("提单已删除", `${bill.blNo} 已从列表移除。`, "backend");
@@ -1372,8 +1438,14 @@ async function removeManagedTemplate(template) {
   }
 }
 
-function toggleBill(id) {
-  selectedBillId.value = selectedBillId.value === id ? "" : id;
+function openBillDialog(bill) {
+  billDetailDialog.billId = bill.id;
+  billDetailDialog.open = true;
+}
+
+function closeBillDialog() {
+  billDetailDialog.open = false;
+  billDetailDialog.billId = "";
 }
 
 function toggleBillSelection(id) {
