@@ -10,75 +10,130 @@
     <nav class="glass-nav">
       <div class="brand">
         <span class="brand-orb">MR</span>
-        <span>Manifest Reader Client</span>
+        <span>Manifest Reader</span>
       </div>
-      <span class="nav-note">Ocean documents, quietly organized.</span>
+      <div class="public-nav-actions">
+        <button class="ghost-nav-button" type="button" @click="openAuthDialog('login')">登录</button>
+        <button class="primary-nav-button" type="button" @click="openAuthDialog('register')">开始使用</button>
+      </div>
     </nav>
 
-    <main class="login-canvas">
-      <section class="login-copy">
-        <p class="eyebrow">Client Workspace</p>
-        <h1>让提单文件进入一个安静、清晰的工作台。</h1>
-        <div class="signal-row" aria-label="Workspace highlights">
-          <span>BL Data</span>
-          <span>Template Extract</span>
-          <span>Export Flow</span>
+    <main class="public-shell">
+      <section class="public-hero">
+        <div class="public-copy">
+          <p class="eyebrow">DIGITAL FREIGHT OPERATING PLATFORM</p>
+          <h1>看得见流程，管得住提单，也能直接发起货运协作。</h1>
+          <p class="public-summary">
+            把提单管理、模板提取、按模板导出与货运商城整合进一个专业客户端，让文档处理和业务协作在同一平台完成。
+          </p>
+          <div class="public-hero-actions">
+            <button class="primary-button" type="button" @click="openAuthDialog('login')">进入平台</button>
+            <button class="ghost-button public-secondary-cta" type="button" @click="openAuthDialog('register')">创建账号</button>
+          </div>
+          <div class="public-proof-band" aria-label="Platform highlights">
+            <span v-for="item in landingProofPoints" :key="item">{{ item }}</span>
+          </div>
+        </div>
+
+        <div class="public-visual-stage" aria-label="Platform capability showcase">
+          <div class="visual-orb orb-one"></div>
+          <div class="visual-orb orb-two"></div>
+          <div class="visual-grid">
+            <article
+              v-for="capability in landingCapabilities"
+              :key="capability.title"
+              class="capability-card"
+            >
+              <span class="capability-icon" aria-hidden="true" v-html="getIconSvg(capability.icon)"></span>
+              <strong>{{ capability.title }}</strong>
+              <p>{{ capability.desc }}</p>
+            </article>
+          </div>
         </div>
       </section>
 
-      <form v-if="authMode === 'login'" class="login-card" novalidate @submit.prevent="login">
-        <div class="auth-card-head">
-          <div>
-            <p class="card-kicker">鉴权入口</p>
-            <h2>登录客户端</h2>
+      <section class="public-support-grid">
+        <article class="public-support-block">
+          <p class="eyebrow">Platform Scope</p>
+          <h2>一个客户端覆盖文档处理与货运协作。</h2>
+          <p>把原本分散的提单录入、模板整理、导出文件和货运成交放进一条更短的操作路径。</p>
+        </article>
+        <article class="public-workflow-strip">
+          <div v-for="step in landingWorkflow" :key="step.title" class="workflow-step">
+            <span>{{ step.index }}</span>
+            <strong>{{ step.title }}</strong>
+            <p>{{ step.desc }}</p>
           </div>
-          <button class="ghost-button" type="button" @click="switchAuthMode('register')">注册账号</button>
-        </div>
-        <label>
-          用户名 / 四字编号
-          <input v-model.trim="loginForm.identity" placeholder="tenant_user 或 TEST" @input="clearLoginError" />
-        </label>
-        <label>
-          密码
-          <input v-model.trim="loginForm.password" type="password" placeholder="请输入密码" @input="clearLoginError" />
-        </label>
-        <p v-if="loginError" class="form-error">{{ loginError }}</p>
-        <button class="primary-button" type="submit">进入工作台</button>
-      </form>
-
-      <form v-else class="login-card register-card" novalidate @submit.prevent="register">
-        <div class="auth-card-head">
-          <div>
-            <p class="card-kicker">新用户入口</p>
-            <h2>注册客户端</h2>
-            <p>创建测试租户下的普通用户账号，注册成功后可直接返回登录。</p>
-          </div>
-          <button class="ghost-button" type="button" @click="switchAuthMode('login')">返回登录</button>
-        </div>
-        <label>
-          用户名
-          <input v-model.trim="registerForm.username" placeholder="new_user" @input="clearRegisterError" />
-        </label>
-        <label>
-          密码
-          <input v-model.trim="registerForm.password" type="password" placeholder="至少 6 位密码" @input="clearRegisterError" />
-        </label>
-        <label>
-          确认密码
-          <input v-model.trim="registerForm.confirmPassword" type="password" placeholder="再次输入密码" @input="clearRegisterError" />
-        </label>
-        <label>
-          昵称
-          <input v-model.trim="registerForm.nickname" placeholder="可选" @input="clearRegisterError" />
-        </label>
-        <label>
-          邮箱
-          <input v-model.trim="registerForm.email" type="email" placeholder="可选" @input="clearRegisterError" />
-        </label>
-        <p v-if="registerError" class="form-error">{{ registerError }}</p>
-        <button class="primary-button" type="submit">创建账号</button>
-      </form>
+        </article>
+      </section>
     </main>
+
+    <section v-if="authDialogOpen" class="auth-dialog-backdrop" @click.self="closeAuthDialog">
+      <article class="auth-dialog-shell">
+        <div class="auth-dialog-brand">
+          <p class="eyebrow">{{ authMode === "login" ? "Platform Login" : "Platform Register" }}</p>
+          <h2>{{ authMode === "login" ? "进入 Manifest Reader" : "创建客户端账号" }}</h2>
+          <p>
+            {{ authMode === "login"
+              ? "通过用户名或四字编号进入平台工作台。"
+              : "创建账号后即可返回登录，进入综合总览与业务工作台。" }}
+          </p>
+        </div>
+
+        <form v-if="authMode === 'login'" class="login-card auth-dialog-card" novalidate @submit.prevent="login">
+          <div class="auth-card-head">
+            <div>
+              <p class="card-kicker">鉴权入口</p>
+              <h2>登录客户端</h2>
+            </div>
+            <button class="ghost-button" type="button" @click="switchAuthMode('register')">注册账号</button>
+          </div>
+          <label>
+            用户名 / 四字编号
+            <input v-model.trim="loginForm.identity" placeholder="tenant_user 或 TEST" @input="clearLoginError" />
+          </label>
+          <label>
+            密码
+            <input v-model.trim="loginForm.password" type="password" placeholder="请输入密码" @input="clearLoginError" />
+          </label>
+          <p v-if="loginError" class="form-error">{{ loginError }}</p>
+          <button class="primary-button" type="submit">进入工作台</button>
+        </form>
+
+        <form v-else class="login-card register-card auth-dialog-card" novalidate @submit.prevent="register">
+          <div class="auth-card-head">
+            <div>
+              <p class="card-kicker">新用户入口</p>
+              <h2>注册客户端</h2>
+              <p>创建测试租户下的普通用户账号，注册成功后可直接返回登录。</p>
+            </div>
+            <button class="ghost-button" type="button" @click="switchAuthMode('login')">返回登录</button>
+          </div>
+          <label>
+            用户名
+            <input v-model.trim="registerForm.username" placeholder="new_user" @input="clearRegisterError" />
+          </label>
+          <label>
+            密码
+            <input v-model.trim="registerForm.password" type="password" placeholder="至少 6 位密码" @input="clearRegisterError" />
+          </label>
+          <label>
+            确认密码
+            <input v-model.trim="registerForm.confirmPassword" type="password" placeholder="再次输入密码" @input="clearRegisterError" />
+          </label>
+          <label>
+            昵称
+            <input v-model.trim="registerForm.nickname" placeholder="可选" @input="clearRegisterError" />
+          </label>
+          <label>
+            邮箱
+            <input v-model.trim="registerForm.email" type="email" placeholder="可选" @input="clearRegisterError" />
+          </label>
+          <p v-if="registerError" class="form-error">{{ registerError }}</p>
+          <button class="primary-button" type="submit">创建账号</button>
+        </form>
+      </article>
+    </section>
   </section>
 
   <section v-else class="client-shell" :class="{ collapsed: sidebarCollapsed }">
@@ -121,39 +176,90 @@
 
     <main class="workspace">
       <section v-if="currentView === 'overview'" class="module-scene">
-        <div class="module-intro">
-          <p class="eyebrow">{{ currentMeta.eyebrow }}</p>
-          <h1>{{ currentMeta.title }}</h1>
-          <p v-if="currentMeta.description">{{ currentMeta.description }}</p>
-          <div class="inline-stat-list" aria-label="Workspace summary">
-            <span v-for="item in clientQuickStats" :key="item.label" class="inline-stat">
-              <strong>{{ item.value }}</strong>
-              <small>{{ item.label }}</small>
-            </span>
+        <section class="overview-hero">
+          <div class="overview-hero-copy">
+            <p class="eyebrow">Client Overview</p>
+            <h1>欢迎回来，{{ session.nickname || session.username }}。</h1>
+            <p>从这里查看当前平台状态、进入主流程，并继续你最近的业务动作。</p>
           </div>
-        </div>
+          <div class="overview-account-card">
+            <span>当前账号</span>
+            <strong>{{ session.companyCode || "TEST" }}</strong>
+            <small>已登录客户端工作台</small>
+          </div>
+        </section>
 
-        <section class="scene-grid">
-        <article class="metric-card dark">
-          <span>已存提单</span>
-          <strong>{{ savedBills.length }}</strong>
-        </article>
-        <article class="metric-card">
-          <span>模板提取</span>
-          <strong>{{ extractedTemplates.length }}</strong>
-        </article>
-        <article class="metric-card">
-          <span>待导出</span>
-          <strong>{{ exportJobs.length }}</strong>
-        </article>
-        <article class="panel-card wide">
-          <h2>总览</h2>
-          <div class="placeholder-strip">
-            <span></span>
-            <span></span>
-            <span></span>
-          </div>
-        </article>
+        <section class="overview-kpi-grid">
+          <article v-for="item in clientQuickStats" :key="item.label" class="overview-kpi-card">
+            <span>{{ item.label }}</span>
+            <strong>{{ item.value }}</strong>
+          </article>
+        </section>
+
+        <section class="overview-main-grid">
+          <article class="panel-card overview-shortcuts-panel">
+            <div class="panel-title compact">
+              <h2>主流程快捷入口</h2>
+              <p>从最常用的入口直接开始工作。</p>
+            </div>
+            <div class="overview-shortcut-grid">
+              <button
+                v-for="item in overviewShortcuts"
+                :key="item.title"
+                class="overview-shortcut"
+                type="button"
+                @click="handleOverviewShortcut(item.action)"
+              >
+                <span class="overview-shortcut-icon" aria-hidden="true" v-html="getIconSvg(item.icon)"></span>
+                <strong>{{ item.title }}</strong>
+                <p>{{ item.desc }}</p>
+              </button>
+            </div>
+          </article>
+
+          <article class="panel-card overview-todo-panel">
+            <div class="panel-title compact">
+              <h2>待办与系统提醒</h2>
+              <p>优先处理当前仍在队列中的工作。</p>
+            </div>
+            <div class="overview-todo-list">
+              <div v-for="item in overviewTodos" :key="item.title" class="overview-todo-item">
+                <span class="overview-todo-dot"></span>
+                <div>
+                  <strong>{{ item.title }}</strong>
+                  <p>{{ item.desc }}</p>
+                </div>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <section class="overview-activity-grid">
+          <article class="panel-card overview-activity-panel">
+            <div class="panel-title compact">
+              <h2>最近业务活动</h2>
+              <p>最近更新的提单、模板和导出任务。</p>
+            </div>
+            <div class="overview-activity-list">
+              <div v-for="item in recentWorkspaceActivity" :key="item.title" class="overview-activity-item">
+                <strong>{{ item.title }}</strong>
+                <p>{{ item.desc }}</p>
+              </div>
+            </div>
+          </article>
+
+          <article class="panel-card overview-activity-panel">
+            <div class="panel-title compact">
+              <h2>市场动态</h2>
+              <p>关注货运商城的最新变化与成交状态。</p>
+            </div>
+            <div class="overview-activity-list">
+              <div v-for="item in marketActivityFeed" :key="item.title" class="overview-activity-item">
+                <strong>{{ item.title }}</strong>
+                <p>{{ item.desc }}</p>
+              </div>
+            </div>
+          </article>
         </section>
       </section>
 
@@ -1128,6 +1234,7 @@ import {
 import { normalizeDifyWorkflowMappings } from "./utils/difyWorkflow";
 
 const authMode = ref("login");
+const authDialogOpen = ref(false);
 
 const loginForm = reactive({
   identity: "tenant_user",
@@ -1340,6 +1447,21 @@ const navItems = [
   { key: "export", label: "按模版导出", icon: "output" },
 ];
 
+const landingCapabilities = [
+  { icon: "files", title: "提单管理", desc: "结构化归档、查询与编辑提单数据。" },
+  { icon: "searchFile", title: "模板提取", desc: "从样本文件中沉淀字段结构与模板。" },
+  { icon: "output", title: "按模板导出", desc: "把抽取结果快速生成目标文件。" },
+  { icon: "market", title: "货运商城", desc: "发布需求、接收报价并跟进履约。" },
+];
+
+const landingProofPoints = ["BL Workspace", "Template Extraction", "Template Export", "Freight Collaboration"];
+
+const landingWorkflow = [
+  { index: "01", title: "整理提单", desc: "把文件转换成可编辑、可检索的结构化数据。" },
+  { index: "02", title: "沉淀模板", desc: "从样本中提取字段规则，沉淀可复用模板。" },
+  { index: "03", title: "完成协作", desc: "导出文件、发布需求、推进报价与履约流程。" },
+];
+
 const metaMap = {
   overview: {
     eyebrow: "Overview",
@@ -1409,6 +1531,26 @@ const marketQuickStats = computed(() => [
   { label: "我的发布", value: myMarketDemands.value.length },
   { label: "我的接单", value: myAcceptedOrders.value.length },
 ]);
+const overviewShortcuts = computed(() => [
+  { icon: "files", title: "新增提单", desc: "录入或补充一条提单业务数据。", action: "create-bill" },
+  { icon: "searchFile", title: "模板提取", desc: "上传样本文件并沉淀模板结构。", action: "extract" },
+  { icon: "output", title: "按模板导出", desc: "快速生成标准文档和导出任务。", action: "export" },
+  { icon: "market", title: "发布需求", desc: "在商城中发布新的货运协作需求。", action: "market-demand" },
+]);
+const overviewTodos = computed(() => [
+  { title: `${exportJobs.value.length} 个导出任务待查看`, desc: "检查导出结果并完成本地或 MinIO 保存。" },
+  { title: `${myMarketDemands.value.length} 条货运需求正在跟进`, desc: "关注报价进度、审核状态与履约动作。" },
+  { title: `${savedBills.value.length} 条提单数据已进入工作台`, desc: "继续补全字段、编辑状态或执行批量整理。" },
+]);
+const recentWorkspaceActivity = computed(() => [
+  { title: savedBills.value[0]?.blNo || "暂无提单更新", desc: savedBills.value[0] ? `最近提单：${savedBills.value[0].goodsName}` : "等待新的提单业务数据进入工作台。" },
+  { title: managedTemplates.value[0]?.templateName || "暂无模板更新", desc: managedTemplates.value[0] ? `模板编码：${managedTemplates.value[0].templateCode}` : "提取模板后会在这里显示最近更新。" },
+  { title: exportJobs.value[0]?.file || "暂无导出任务", desc: exportJobs.value[0] ? `导出状态：${exportJobs.value[0].status}` : "导出工作完成后会在这里汇总最近动作。" },
+]);
+const marketActivityFeed = computed(() => [
+  { title: myAcceptedOrders.value[0]?.orderNo || "暂无接单更新", desc: myAcceptedOrders.value[0] ? `当前状态：${formatMarketOrderStatus(myAcceptedOrders.value[0].orderStatus)}` : "接单与履约进度会在这里显示。" },
+  { title: marketDemands.value[0]?.title || "暂无市场动态", desc: marketDemands.value[0] ? `${marketDemands.value[0].departurePort} → ${marketDemands.value[0].destinationPort}` : "市场大厅的新需求会在这里展示。" },
+]);
 const activeBillDetail = computed(() => savedBills.value.find((bill) => bill.id === billDetailDialog.billId));
 const billTotalPages = computed(() => Math.max(1, Math.ceil(billPage.total / billPage.size)));
 const templateTotalPages = computed(() => Math.max(1, Math.ceil(templatePage.total / templatePage.size)));
@@ -1450,6 +1592,35 @@ function getIconSvg(name) {
   return iconMap[name] || "";
 }
 
+function openAuthDialog(mode = "login") {
+  switchAuthMode(mode);
+  authDialogOpen.value = true;
+}
+
+function closeAuthDialog() {
+  authDialogOpen.value = false;
+}
+
+function handleOverviewShortcut(action) {
+  if (action === "create-bill") {
+    switchView("bills");
+    startCreateBill();
+    return;
+  }
+  if (action === "extract") {
+    switchView("extract");
+    return;
+  }
+  if (action === "export") {
+    switchView("export");
+    return;
+  }
+  if (action === "market-demand") {
+    switchView("market");
+    openMarketDemandEditor();
+  }
+}
+
 async function login() {
   loginError.value = validateLoginForm();
   if (loginError.value) {
@@ -1461,6 +1632,7 @@ async function login() {
     const result = await loginClient(loginPayload);
     setAccessToken(result.accessToken);
     session.loggedIn = true;
+    authDialogOpen.value = false;
     session.username = result.username || loginPayload.username;
     session.nickname = result.username === "tenant_user" ? "测试用户" : result.username || loginPayload.username;
     session.companyCode = (loginPayload.companyCode || "TEST").toUpperCase();
@@ -1508,6 +1680,7 @@ async function register() {
     loginForm.password = registerForm.password;
     resetRegisterForm();
     authMode.value = "login";
+    authDialogOpen.value = true;
     notify("注册成功", "账号已创建，可直接点击进入工作台。", "backend");
   } catch (error) {
     registerError.value = error.message || "注册失败，请检查 auth-service。";
@@ -1555,6 +1728,7 @@ function resetRegisterForm() {
 function logout() {
   setAccessToken("");
   session.loggedIn = false;
+  authDialogOpen.value = false;
   currentView.value = "overview";
   marketTab.value = "browse";
   marketDemands.value = [];
