@@ -40,6 +40,10 @@ spring:
               uri: ${USER_SERVICE_URI:lb://manifest-reader-user}
               predicates:
                 - Path=/user/**
+            - id: market-service
+              uri: ${MARKET_SERVICE_URI:lb://manifest-reader-market}
+              predicates:
+                - Path=/market/**
 
 server:
   port: 8080

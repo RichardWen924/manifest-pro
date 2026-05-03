@@ -1,8 +1,9 @@
-import { mockBillsByUser, mockUsers } from "../mock/adminMock";
+import { mockBillsByUser, mockMarketDemands, mockUsers } from "../mock/adminMock";
 
 const API_BASE = import.meta.env.VITE_ADMIN_API_BASE || "/admin";
 
 let users = [...mockUsers];
+let marketDemands = [...mockMarketDemands];
 
 async function request(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
@@ -113,5 +114,61 @@ export async function fetchUserBills(userId) {
     return await request(`/users/${userId}/bills`);
   } catch (error) {
     return Object.assign([...(mockBillsByUser[userId] || [])], { __source: "mock" });
+  }
+}
+
+export async function fetchMarketReviewDemands(params = {}) {
+  const search = new URLSearchParams();
+  search.set("pageNo", params.pageNo || 1);
+  search.set("pageSize", params.pageSize || 10);
+  if (params.keyword) {
+    search.set("keyword", params.keyword);
+  }
+  if (params.auditStatus) {
+    search.set("auditStatus", params.auditStatus);
+  }
+  try {
+    return await request(`/market/demands/review/page?${search.toString()}`);
+  } catch (error) {
+    const pageNo = Number(params.pageNo || 1);
+    const pageSize = Number(params.pageSize || 10);
+    const keyword = String(params.keyword || "").toLowerCase();
+    const filtered = marketDemands.filter((item) => {
+      const text = `${item.demandNo} ${item.title} ${item.goodsName} ${item.departurePort} ${item.destinationPort}`.toLowerCase();
+      const keywordMatched = !keyword || text.includes(keyword);
+      const auditMatched = !params.auditStatus || item.auditStatus === params.auditStatus;
+      return keywordMatched && auditMatched;
+    });
+    const start = (pageNo - 1) * pageSize;
+    const records = filtered.slice(start, start + pageSize);
+    return {
+      records,
+      total: filtered.length,
+      current: pageNo,
+      size: pageSize,
+      __source: "mock",
+    };
+  }
+}
+
+export async function auditMarketDemand(demandId, payload) {
+  try {
+    return await request(`/market/demands/${demandId}/audit`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  } catch (error) {
+    marketDemands = marketDemands.map((item) => {
+      if (item.id !== demandId) {
+        return item;
+      }
+      return {
+        ...item,
+        auditStatus: payload.auditStatus,
+        demandStatus: payload.auditStatus === "APPROVED" ? "PUBLISHED" : "REJECTED",
+      };
+    });
+    const updated = marketDemands.find((item) => item.id === demandId);
+    return { ...updated, __source: "mock" };
   }
 }

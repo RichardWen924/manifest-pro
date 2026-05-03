@@ -69,7 +69,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -79,7 +80,8 @@ button {
 
 button:focus-visible,
 input:focus-visible,
-select:focus-visible {
+select:focus-visible,
+textarea:focus-visible {
   outline: 2px solid var(--blue);
   outline-offset: 2px;
 }
@@ -229,7 +231,8 @@ label {
 }
 
 input,
-select {
+select,
+textarea {
   width: 100%;
   border: 1px solid rgba(142, 156, 179, 0.18);
   border-radius: 14px;
@@ -240,15 +243,22 @@ select {
 }
 
 input:hover,
-select:hover {
+select:hover,
+textarea:hover {
   border-color: rgba(91, 140, 255, 0.28);
 }
 
 input:focus,
-select:focus {
+select:focus,
+textarea:focus {
   border-color: rgba(37, 99, 235, 0.36);
   box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.08);
   background: #ffffff;
+}
+
+textarea {
+  min-height: 120px;
+  resize: vertical;
 }
 
 .primary-button,
@@ -274,6 +284,14 @@ select:focus {
   padding: 10px 18px;
   background: var(--near-black);
   color: #ffffff;
+}
+
+.danger-button {
+  border-radius: 980px;
+  padding: 10px 18px;
+  border: 1px solid rgba(255, 59, 48, 0.12);
+  background: rgba(255, 59, 48, 0.1);
+  color: #b42318;
 }
 
 .ghost-light-button {
@@ -677,6 +695,10 @@ select:focus {
   margin: 22px 0;
 }
 
+.market-toolbar {
+  grid-template-columns: minmax(240px, 1fr) 180px auto;
+}
+
 .table-wrap {
   overflow-x: auto;
 }
@@ -746,6 +768,11 @@ td {
   color: rgba(0, 0, 0, 0.48);
 }
 
+.status-pill.subtle {
+  background: rgba(23, 32, 51, 0.08);
+  color: rgba(23, 32, 51, 0.7);
+}
+
 .link-button {
   border: 0;
   padding: 0;
@@ -763,6 +790,98 @@ td {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
   margin: 22px 0;
+}
+
+.market-summary-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.market-review-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.market-review-list,
+.market-review-detail {
+  display: grid;
+  gap: 16px;
+}
+
+.table-select-row {
+  cursor: pointer;
+  transition: background 0.18s ease;
+}
+
+.table-select-row:hover {
+  background: rgba(37, 99, 235, 0.04);
+}
+
+.table-select-row.active {
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.table-subline {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+}
+
+.status-stack {
+  display: inline-grid;
+  gap: 6px;
+}
+
+.pagination-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.market-detail-stack {
+  display: grid;
+  gap: 18px;
+}
+
+.market-detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.market-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.market-detail-grid article,
+.empty-review-state {
+  border: 1px solid rgba(142, 156, 179, 0.12);
+  border-radius: 18px;
+  padding: 18px;
+  background: rgba(248, 251, 255, 0.88);
+}
+
+.market-detail-grid span {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.empty-review-state {
+  min-height: 340px;
+  display: grid;
+  place-items: center;
+  text-align: center;
 }
 
 .data-summary article,
@@ -896,8 +1015,15 @@ td {
   .data-summary,
   .permission-grid,
   .toolbar,
-  .form-grid {
+  .form-grid,
+  .market-review-shell,
+  .market-detail-grid {
     grid-template-columns: 1fr;
+  }
+
+  .pagination-row,
+  .market-detail-head {
+    display: grid;
   }
 
   .chart-card {

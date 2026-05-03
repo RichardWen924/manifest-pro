@@ -268,6 +268,155 @@
         </div>
       </section>
 
+      <section v-if="currentView === 'market'" class="panel-card">
+        <div class="panel-title row">
+          <div>
+            <h2>商城审核管理</h2>
+            <p>统一审核用户发布的货运需求，决定是否允许进入报价与接单链路。</p>
+          </div>
+          <div class="market-summary-strip">
+            <span class="hero-meta-pill">
+              <strong>{{ marketReviewPage.total }}</strong>
+              <small>需求总数</small>
+            </span>
+            <span class="hero-meta-pill">
+              <strong>{{ pendingMarketCount }}</strong>
+              <small>待审核</small>
+            </span>
+          </div>
+        </div>
+
+        <div class="toolbar market-toolbar">
+          <label>
+            搜索
+            <input v-model.trim="marketFilters.keyword" placeholder="需求标题 / 商品 / 港口" @keyup.enter="searchMarketDemands" />
+          </label>
+          <label>
+            审核状态
+            <select v-model="marketFilters.auditStatus" @change="searchMarketDemands">
+              <option value="">全部</option>
+              <option value="PENDING">待审核</option>
+              <option value="APPROVED">已通过</option>
+              <option value="REJECTED">已驳回</option>
+            </select>
+          </label>
+          <button class="ghost-light-button" type="button" @click="resetMarketFilters">重置</button>
+        </div>
+
+        <div class="market-review-shell">
+          <section class="market-review-list">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>需求单号</th>
+                    <th>货运需求</th>
+                    <th>发运路线</th>
+                    <th>状态</th>
+                    <th>发布时间</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="item in marketReviewDemands"
+                    :key="item.id"
+                    class="table-select-row"
+                    :class="{ active: selectedMarketDemandId === item.id }"
+                    @click="selectMarketDemand(item)"
+                  >
+                    <td>{{ item.demandNo }}</td>
+                    <td>
+                      <strong>{{ item.title }}</strong>
+                      <small class="table-subline">{{ item.goodsName }}</small>
+                    </td>
+                    <td>{{ item.departurePort }} → {{ item.destinationPort }}</td>
+                    <td>
+                      <div class="status-stack">
+                        <span class="status-pill">{{ formatMarketAuditStatus(item.auditStatus) }}</span>
+                        <span class="status-pill subtle">{{ formatMarketDemandStatus(item.demandStatus) }}</span>
+                      </div>
+                    </td>
+                    <td>{{ formatDateTime(item.createdAt) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="pagination-row">
+              <span>共 {{ marketReviewPage.total }} 条，第 {{ marketReviewPage.current }} / {{ marketReviewTotalPages }} 页</span>
+              <div class="row-actions">
+                <button class="ghost-light-button" type="button" :disabled="marketReviewPage.current <= 1" @click="changeMarketReviewPage(-1)">上一页</button>
+                <button class="ghost-light-button" type="button" :disabled="marketReviewPage.current >= marketReviewTotalPages" @click="changeMarketReviewPage(1)">下一页</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="market-review-detail panel-card">
+            <div v-if="selectedMarketDemand" class="market-detail-stack">
+              <div class="market-detail-head">
+                <div>
+                  <p class="eyebrow">Demand Review</p>
+                  <h3>{{ selectedMarketDemand.title }}</h3>
+                  <p>{{ selectedMarketDemand.demandNo }} · 发布用户 #{{ selectedMarketDemand.publisherUserId }}</p>
+                </div>
+                <div class="status-stack">
+                  <span class="status-pill">{{ formatMarketAuditStatus(selectedMarketDemand.auditStatus) }}</span>
+                  <span class="status-pill subtle">{{ formatMarketDemandStatus(selectedMarketDemand.demandStatus) }}</span>
+                </div>
+              </div>
+
+              <div class="market-detail-grid">
+                <article>
+                  <span>商品名称</span>
+                  <strong>{{ selectedMarketDemand.goodsName }}</strong>
+                </article>
+                <article>
+                  <span>发运路线</span>
+                  <strong>{{ selectedMarketDemand.departurePort }} → {{ selectedMarketDemand.destinationPort }}</strong>
+                </article>
+                <article>
+                  <span>发布用户</span>
+                  <strong>#{{ selectedMarketDemand.publisherUserId }}</strong>
+                </article>
+                <article>
+                  <span>发布时间</span>
+                  <strong>{{ formatDateTime(selectedMarketDemand.createdAt) }}</strong>
+                </article>
+              </div>
+
+              <label>
+                审核备注
+                <textarea v-model.trim="marketAuditForm.auditRemark" rows="4" placeholder="补充审核意见，驳回时建议说明原因"></textarea>
+              </label>
+
+              <div class="dialog-actions">
+                <button
+                  class="secondary-button"
+                  type="button"
+                  :disabled="selectedMarketDemand.auditStatus === 'APPROVED' || marketAuditSubmitting"
+                  @click="submitMarketAudit('APPROVED')"
+                >
+                  {{ marketAuditSubmitting && pendingAuditAction === "APPROVED" ? "正在通过" : "审核通过" }}
+                </button>
+                <button
+                  class="danger-button"
+                  type="button"
+                  :disabled="selectedMarketDemand.auditStatus === 'REJECTED' || marketAuditSubmitting"
+                  @click="submitMarketAudit('REJECTED')"
+                >
+                  {{ marketAuditSubmitting && pendingAuditAction === "REJECTED" ? "正在驳回" : "驳回需求" }}
+                </button>
+              </div>
+            </div>
+
+            <div v-else class="empty-review-state">
+              <h3>选择一条货运需求</h3>
+              <p>右侧会展示审核详情，并支持通过或驳回。</p>
+            </div>
+          </section>
+        </div>
+      </section>
+
       <section v-if="currentView === 'permissions'" class="panel-card">
         <div class="panel-title">
           <h2>权限管理</h2>
@@ -337,6 +486,8 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from "vue";
 import {
+  auditMarketDemand,
+  fetchMarketReviewDemands,
   fetchUserBills,
   fetchUsers,
   loginAdmin,
@@ -365,10 +516,25 @@ const selectedUserId = ref("");
 const selectedBills = ref([]);
 const editingUserId = ref("");
 const userDialog = ref(null);
+const marketReviewDemands = ref([]);
+const selectedMarketDemandId = ref(null);
+const marketAuditSubmitting = ref(false);
+const pendingAuditAction = ref("");
 
 const filters = reactive({
   keyword: "",
   status: "",
+});
+
+const marketFilters = reactive({
+  keyword: "",
+  auditStatus: "",
+});
+
+const marketReviewPage = reactive({
+  current: 1,
+  size: 8,
+  total: 0,
 });
 
 const userForm = reactive({
@@ -378,6 +544,10 @@ const userForm = reactive({
   mobile: "",
   role: "业务操作员",
   status: "enabled",
+});
+
+const marketAuditForm = reactive({
+  auditRemark: "",
 });
 
 const dashboardSeries = [
@@ -414,6 +584,8 @@ const iconMap = Object.freeze({
     '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M16 3.128a4 4 0 0 1 0 7.744M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></g></svg>',
   files:
     '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M15 2h-4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V8"/><path d="M16.706 2.706A2.4 2.4 0 0 0 15 2v5a1 1 0 0 0 1 1h5a2.4 2.4 0 0 0-.706-1.706zM5 7a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h8a2 2 0 0 0 1.732-1"/></g></svg>',
+  market:
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M3 7.5h18"/><path d="M5 7.5V18a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V7.5"/><path d="M8 11h8"/><path d="M9 15h3"/><path d="M6 4h12l1 3.5H5z"/></g></svg>',
   shield:
     '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12l2 2l4-4"/></g></svg>',
 });
@@ -423,6 +595,7 @@ const currentMeta = computed(() => {
     dashboard: { eyebrow: "Dashboard", title: "工作台看板" },
     users: { eyebrow: "Users", title: "用户管理" },
     userData: { eyebrow: "Bill Data", title: "用户数据管理" },
+    market: { eyebrow: "Marketplace Governance", title: "商城审核管理" },
     permissions: { eyebrow: "Access Control", title: "权限管理" },
   };
   return metaMap[currentView.value];
@@ -434,15 +607,34 @@ const sidebarItems = computed(() => [
   { key: "dashboard", label: "工作台看板", icon: "dashboard", locked: false },
   { key: "users", label: "用户管理", icon: "users", locked: false },
   { key: "userData", label: "用户数据管理", icon: "files", locked: false },
+  { key: "market", label: "商城审核管理", icon: "market", locked: false },
   { key: "permissions", label: "权限管理", icon: "shield", locked: session.role !== "SUPER_ADMIN" },
 ]);
 
 const selectedUser = computed(() => users.value.find((user) => user.id === selectedUserId.value));
-const adminQuickStats = computed(() => [
-  { label: "当前角色", value: roleText.value },
-  { label: "用户总数", value: users.value.length },
-  { label: "当前提单", value: selectedBills.value.length },
-]);
+const selectedMarketDemand = computed(() =>
+  marketReviewDemands.value.find((item) => item.id === selectedMarketDemandId.value),
+);
+const pendingMarketCount = computed(() =>
+  marketReviewDemands.value.filter((item) => item.auditStatus === "PENDING").length,
+);
+const marketReviewTotalPages = computed(() =>
+  Math.max(1, Math.ceil(marketReviewPage.total / marketReviewPage.size)),
+);
+const adminQuickStats = computed(() => {
+  if (currentView.value === "market") {
+    return [
+      { label: "当前角色", value: roleText.value },
+      { label: "待审核", value: pendingMarketCount.value },
+      { label: "审核列表", value: marketReviewPage.total },
+    ];
+  }
+  return [
+    { label: "当前角色", value: roleText.value },
+    { label: "用户总数", value: users.value.length },
+    { label: "当前提单", value: selectedBills.value.length },
+  ];
+});
 
 const dashboardCharts = computed(() => dashboardSeries.map(createLineChart));
 
@@ -477,6 +669,8 @@ function switchView(view) {
   currentView.value = view;
   if (view === "userData") {
     loadSelectedBills();
+  } else if (view === "market") {
+    loadMarketDemands();
   }
 }
 
@@ -497,6 +691,83 @@ async function loadSelectedBills() {
   const result = await fetchUserBills(selectedUserId.value);
   apiSource.value = result.__source || "backend";
   selectedBills.value = [...result];
+}
+
+async function loadMarketDemands() {
+  const page = await fetchMarketReviewDemands({
+    keyword: marketFilters.keyword,
+    auditStatus: marketFilters.auditStatus,
+    pageNo: marketReviewPage.current,
+    pageSize: marketReviewPage.size,
+  });
+  apiSource.value = page.__source || "backend";
+  marketReviewDemands.value = Array.isArray(page.records) ? page.records : [];
+  marketReviewPage.current = Number(page.current || marketReviewPage.current);
+  marketReviewPage.size = Number(page.size || marketReviewPage.size);
+  marketReviewPage.total = Number(page.total || 0);
+  syncSelectedMarketDemand();
+}
+
+function searchMarketDemands() {
+  marketReviewPage.current = 1;
+  loadMarketDemands();
+}
+
+function resetMarketFilters() {
+  marketFilters.keyword = "";
+  marketFilters.auditStatus = "";
+  marketReviewPage.current = 1;
+  loadMarketDemands();
+}
+
+function changeMarketReviewPage(step) {
+  const nextPage = marketReviewPage.current + step;
+  if (nextPage < 1 || nextPage > marketReviewTotalPages.value) {
+    return;
+  }
+  marketReviewPage.current = nextPage;
+  loadMarketDemands();
+}
+
+function selectMarketDemand(item) {
+  selectedMarketDemandId.value = item.id;
+  marketAuditForm.auditRemark = "";
+}
+
+function syncSelectedMarketDemand() {
+  if (!marketReviewDemands.value.length) {
+    selectedMarketDemandId.value = null;
+    return;
+  }
+  const matched = marketReviewDemands.value.find((item) => item.id === selectedMarketDemandId.value);
+  selectedMarketDemandId.value = matched?.id || marketReviewDemands.value[0].id;
+}
+
+async function submitMarketAudit(auditStatus) {
+  if (!selectedMarketDemand.value?.id) {
+    return;
+  }
+  marketAuditSubmitting.value = true;
+  pendingAuditAction.value = auditStatus;
+  try {
+    const result = await auditMarketDemand(selectedMarketDemand.value.id, {
+      auditStatus,
+      auditRemark: marketAuditForm.auditRemark,
+    });
+    apiSource.value = result.__source || "backend";
+    notify(
+      auditStatus === "APPROVED" ? "审核已通过" : "需求已驳回",
+      `${selectedMarketDemand.value.title} 状态已更新。`,
+      apiSource.value,
+    );
+    marketAuditForm.auditRemark = "";
+    await loadMarketDemands();
+  } catch (error) {
+    notify("审核失败", error.message || "请检查 admin-service 和 market-service。", "error");
+  } finally {
+    marketAuditSubmitting.value = false;
+    pendingAuditAction.value = "";
+  }
 }
 
 async function openUserData(user) {
@@ -554,6 +825,45 @@ async function deleteUser(user) {
   }
   await loadUsers();
   notify("用户已删除", `${user.nickname} 已从列表移除。`, apiSource.value);
+}
+
+function formatMarketAuditStatus(status) {
+  const map = {
+    PENDING: "待审核",
+    APPROVED: "已通过",
+    REJECTED: "已驳回",
+  };
+  return map[status] || status || "未知";
+}
+
+function formatMarketDemandStatus(status) {
+  const map = {
+    PENDING_REVIEW: "待审核",
+    PUBLISHED: "待报价",
+    QUOTING: "报价中",
+    LOCKED: "已锁单",
+    FULFILLING: "履约中",
+    COMPLETED: "已完结",
+    CANCELLED: "已取消",
+    REJECTED: "已驳回",
+  };
+  return map[status] || status || "未知";
+}
+
+function formatDateTime(value) {
+  if (!value) {
+    return "-";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
 }
 
 function createLineChart(series) {

@@ -210,3 +210,89 @@ export async function initFileUpload(file, bizType) {
     }),
   });
 }
+
+export async function fetchMarketDemandPage(params = {}) {
+  const search = new URLSearchParams();
+  search.set("pageNo", params.pageNo || 1);
+  search.set("pageSize", params.pageSize || 10);
+  if (params.keyword) {
+    search.set("keyword", params.keyword);
+  }
+  if (params.status) {
+    search.set("status", params.status);
+  }
+  return request(USER_BASE, `/market/demands/page?${search.toString()}`);
+}
+
+export async function fetchMyMarketDemands(params = {}) {
+  const search = new URLSearchParams();
+  search.set("pageNo", params.pageNo || 1);
+  search.set("pageSize", params.pageSize || 10);
+  if (params.keyword) {
+    search.set("keyword", params.keyword);
+  }
+  if (params.status) {
+    search.set("status", params.status);
+  }
+  return request(USER_BASE, `/market/demands/mine/page?${search.toString()}`);
+}
+
+export async function createMarketDemand(payload) {
+  return request(USER_BASE, "/market/demands", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function cancelMarketDemand(demandId) {
+  return request(USER_BASE, `/market/demands/${demandId}/cancel`, {
+    method: "POST",
+  });
+}
+
+export async function fetchMarketDemandDetail(demandId) {
+  return request(USER_BASE, `/market/demands/${demandId}`);
+}
+
+export async function fetchMarketQuotes(demandId) {
+  return request(USER_BASE, `/market/demands/${demandId}/quotes`);
+}
+
+export async function submitMarketQuote(demandId, payload) {
+  return request(USER_BASE, `/market/demands/${demandId}/quotes`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function withdrawMarketQuote(demandId, quoteId) {
+  return request(USER_BASE, `/market/demands/${demandId}/quotes/${quoteId}/withdraw`, {
+    method: "POST",
+  });
+}
+
+export async function acceptMarketQuote(demandId, quoteId) {
+  return request(USER_BASE, `/market/demands/${demandId}/accept`, {
+    method: "POST",
+    body: JSON.stringify({ quoteId }),
+  });
+}
+
+export async function fetchMyAcceptedOrders(params = {}) {
+  const search = new URLSearchParams();
+  search.set("pageNo", params.pageNo || 1);
+  search.set("pageSize", params.pageSize || 10);
+  return request(USER_BASE, `/market/orders/mine/page?${search.toString()}`);
+}
+
+export async function startMarketOrder(orderId) {
+  return request(USER_BASE, `/market/orders/${orderId}/start`, {
+    method: "POST",
+  });
+}
+
+export async function completeMarketOrder(orderId) {
+  return request(USER_BASE, `/market/orders/${orderId}/complete`, {
+    method: "POST",
+  });
+}

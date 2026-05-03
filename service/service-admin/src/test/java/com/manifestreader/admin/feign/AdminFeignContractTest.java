@@ -27,6 +27,15 @@ class AdminFeignContractTest {
         assertThat(hasHttpMapping(UserFeignClient.class)).isTrue();
     }
 
+    @Test
+    void marketAdminFeignClientTargetsMarketServiceByName() {
+        FeignClient feignClient = MarketAdminFeignClient.class.getAnnotation(FeignClient.class);
+
+        assertThat(feignClient).isNotNull();
+        assertThat(feignClient.name()).isEqualTo("manifest-reader-market");
+        assertThat(hasHttpMapping(MarketAdminFeignClient.class)).isTrue();
+    }
+
     private boolean hasHttpMapping(Class<?> clientType) {
         return java.util.Arrays.stream(clientType.getMethods())
                 .anyMatch(method -> method.isAnnotationPresent(GetMapping.class)

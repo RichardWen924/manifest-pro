@@ -40,3 +40,42 @@ export const mockBillsByUser = {
     { blNo: "MRBL240004", vesselVoyage: "Maersk Pearl / 221A", pol: "Xiamen", pod: "Rotterdam", status: "待确认" },
   ],
 };
+
+export const mockMarketDemands = [
+  {
+    id: 101,
+    demandNo: "FD202605030001",
+    publisherUserId: "u-1002",
+    title: "上海到鹿特丹整柜运输",
+    goodsName: "机械设备",
+    departurePort: "SHANGHAI",
+    destinationPort: "ROTTERDAM",
+    demandStatus: "PENDING_REVIEW",
+    auditStatus: "PENDING",
+    createdAt: "2026-05-03T09:30:00",
+  },
+  {
+    id: 102,
+    demandNo: "FD202605030002",
+    publisherUserId: "u-1003",
+    title: "宁波到汉堡拼箱运输",
+    goodsName: "家居样品",
+    departurePort: "NINGBO",
+    destinationPort: "HAMBURG",
+    demandStatus: "PUBLISHED",
+    auditStatus: "APPROVED",
+    createdAt: "2026-05-03T10:05:00",
+  },
+  {
+    id: 103,
+    demandNo: "FD202605030003",
+    publisherUserId: "u-1002",
+    title: "青岛到新加坡冷链运输",
+    goodsName: "冷冻食品",
+    departurePort: "QINGDAO",
+    destinationPort: "SINGAPORE",
+    demandStatus: "REJECTED",
+    auditStatus: "REJECTED",
+    createdAt: "2026-05-03T10:25:00",
+  },
+];

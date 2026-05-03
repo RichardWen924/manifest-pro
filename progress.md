@@ -337,6 +337,111 @@
 | admin -> user Feign 冒烟 | `curl -s -i http://127.0.0.1:18081/admin/users/u-1001/bills` | 通过 Nacos 发现 user 并返回账单摘要 | `HTTP/1.1 200`，`success=true`，返回账单列表 | ✓ |
 | admin/user/auth 健康检查 | `curl /actuator/health` | 三个服务均健康 | 三个服务均返回 `{"status":"UP"}` | ✓ |
 
+### Phase 16: Integrated Platform Blueprint
+- **Status:** complete
+- Actions taken:
+  - 基于用户新增目标，确认项目已从“单证系统增强”升级为“综合航运平台”改造任务。
+  - 调研并抽取三类外部参考：
+    - 黑马商城：交易闭环、订单链路、MQ 解耦
+    - 黑马头条：资讯流、评论点赞、微服务治理
+    - 黑马点评：Redis 高并发、点赞、热点、Feed 流
+  - 将外部参考转译为当前项目语境：
+    - 商城 -> 货运需求市场
+    - 头条 -> 行业资讯社区
+    - 点评 -> Redis 高并发互动与抢单模型
+  - 初步确定优先级建议为：货运需求市场优先，其次新闻社区，最后统一前端门户。
+  - 输出正式指导文档 `docs/superpowers/specs/2026-05-02-manifest-reader-integrated-platform-design.md`。
+  - 对设计文档进行了自检，确认服务边界、实施顺序、异步与同步职责划分没有冲突。
+- Files created/modified:
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+  - `docs/superpowers/specs/2026-05-02-manifest-reader-integrated-platform-design.md`
+
+### Phase 17: Marketplace Backend Implementation Plan
+- **Status:** complete
+- Actions taken:
+  - 使用 `writing-plans` 技能，将综合平台 spec 拆成首个独立可执行子计划。
+  - 选择 `service-market` 作为第一份实施计划对象，避免把“市场、新闻、前端重构”写成一个不可执行的大计划。
+  - 形成实施计划文档 `docs/superpowers/plans/2026-05-02-manifest-reader-marketplace-backend.md`。
+  - 计划中明确了：
+    - 新增 `service-market` 模块
+    - `V6__freight_market_init.sql` 数据库迁移
+    - 需求发布/列表/详情
+    - 报价与接单
+    - Redis 防重复接单
+    - RabbitMQ 后续事件与时间线
+    - Nacos/Gateway/本地联调与测试步骤
+- Files created/modified:
+  - `docs/superpowers/plans/2026-05-02-manifest-reader-marketplace-backend.md`
+  - `task_plan.md`
+  - `progress.md`
+
+### Phase 18: Marketplace Backend First Slice Delivery
+- **Status:** complete
+- **Started:** 2026-05-02 16:50:00 CST
+- Actions taken:
+  - 按已批准的 marketplace 后端计划继续执行，实现 `service-market` 的报价、接单和异步后续处理缺口。
+  - 新增 `FreightOrderTimelineMapper`、`FreightMarketMessagingConfig`、`FreightDemandAcceptedMessage`、发布器和消费者。
+  - 将 `acceptQuote` 改造成 Redis 短锁防重 + 同步建单 + RabbitMQ 发布后续事件。
+  - 为 `V6__freight_market_init.sql` 的市场表显式补充 `utf8mb4` 字符集，修复真实中文需求写库失败问题。
+  - 完成 `FreightDemandServiceImplTest`、`FreightDemandIntegrationTest` 和 `service-market` 全量测试验证。
+  - 完成 `gateway + service-market` 打包验证，并以本地 JVM 启动方式完成 `/actuator/health`、发布需求、提交报价、接单下单 smoke。
+  - 通过 RabbitMQ 管理 API 验证 `freight.demand.accepted.queue` 的 `publish=2`、`deliver=2`、`ack=2`、`messages_ready=0`。
+  - 通过 JDBC 验证 `freight_order_timeline` 已落库 2 条记录。
+- Files created/modified:
+  - `service/service-market/src/main/java/com/manifestreader/market/config/FreightMarketMessagingConfig.java`
+  - `service/service-market/src/main/java/com/manifestreader/market/mapper/FreightOrderTimelineMapper.java`
+  - `service/service-market/src/main/java/com/manifestreader/market/messaging/FreightDemandAcceptedMessage.java`
+  - `service/service-market/src/main/java/com/manifestreader/market/messaging/FreightDemandAcceptedPublisher.java`
+  - `service/service-market/src/main/java/com/manifestreader/market/messaging/RabbitFreightDemandAcceptedPublisher.java`
+  - `service/service-market/src/main/java/com/manifestreader/market/messaging/FreightDemandAcceptedConsumer.java`
+  - `service/service-market/src/main/java/com/manifestreader/market/service/impl/FreightDemandServiceImpl.java`
+  - `service/service-market/src/test/java/com/manifestreader/market/integration/FreightDemandIntegrationTest.java`
+  - `zfile/sql/V6__freight_market_init.sql`
+  - `docs/backend-rabbitmq-local.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+### Phase 19: Marketplace-only Scope Reset
+- **Status:** complete
+- **Started:** 2026-05-02 17:10:00 CST
+- Actions taken:
+  - 根据用户最新要求，将当前执行范围从“综合平台并行推进”收窄为“只先完成商城端”。
+  - 调整主计划目标，明确新闻社区和综合门户全部顺延，不再进入当前实现和验收范围。
+  - 新增后续阶段定义：商城后端完善、商城前端重构、商城联调整体验收。
+  - 同步更新 `task_plan.md`、`findings.md`，并准备将实施计划和设计蓝图口径统一为“商城端优先”。
+- Files created/modified:
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+### Phase 19.1: Marketplace Admin Ownership Clarification
+- **Status:** complete
+- **Started:** 2026-05-02 17:12:00 CST
+- Actions taken:
+  - 根据用户补充要求，明确商城管理能力归属到管理端。
+  - 将后续商城阶段中的“审核、统计、履约管理、运营管理”统一划入 `service-admin`。
+  - 更新主计划与发现记录，约定后续通过 `service-admin -> service-market` Feign 完成管理侧操作。
+- Files created/modified:
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+### Phase 19.2: Marketplace Front/Back Responsibility Clarification
+- **Status:** complete
+- **Started:** 2026-05-02 17:15:00 CST
+- Actions taken:
+  - 根据用户补充，进一步细化商城前后台职责边界。
+  - 明确用户端保留“我的上架 / 我的接单 / 我的履约查看”等交易参与能力。
+  - 明确管理端负责“审核 / 统计 / 统筹监管 / 人工干预”等后台治理能力。
+  - 将后续阶段中的审核流和用户侧“我的发布/我的接单”能力写入主计划。
+- Files created/modified:
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |
 |-----------|-------|---------|------------|
@@ -366,3 +471,97 @@
 | What's the goal? | 将航运主业务逐步改造成带 Redis 与 MQ 的消息驱动架构，并最终沉淀成独立任务中心服务 |
 | What have I learned? | 基础设施层面的“同一 compose 项目”与“同一 container”不是一回事；前者适合统一管理，后者反而不利于 RabbitMQ/MinIO 的独立运维 |
 | What have I done? | 已完成本轮计划更新，把 MinIO compose 纳管和模板保存异步化拆成独立后续阶段 |
+
+### Phase 20.1: Marketplace User Gateway Alignment
+- **Status:** complete
+- **Started:** 2026-05-03 11:55:00 CST
+- Actions taken:
+  - 将货运市场共享 DTO / VO 下沉到 `model`，统一 `service-market`、`service-user`、`service-admin` 的跨服务契约。
+  - 新增 `service-user -> service-market` Feign 客户端与 `UserMarketService`，对外提供 `/user/market/**` 用户入口。
+  - 新增用户端“市场列表 / 我的发布 / 需求详情 / 报价 / 接单 / 我的接单”控制器接口。
+  - 为 `frontend/client` 与 `frontend/admin` 补充商城 API 调用函数，给后续页面重构预留稳定接口层。
+  - 清理 `service-market` 内部重复 DTO / VO，避免两套模型并行维护。
+- Files created/modified:
+  - `model/src/main/java/com/manifestreader/model/dto/FreightDemandAcceptRequest.java`
+  - `model/src/main/java/com/manifestreader/model/dto/FreightDemandCreateRequest.java`
+  - `model/src/main/java/com/manifestreader/model/dto/FreightDemandPageQuery.java`
+  - `model/src/main/java/com/manifestreader/model/dto/FreightQuoteCreateRequest.java`
+  - `model/src/main/java/com/manifestreader/model/vo/FreightDemandVO.java`
+  - `model/src/main/java/com/manifestreader/model/vo/FreightDemandDetailVO.java`
+  - `model/src/main/java/com/manifestreader/model/vo/FreightQuoteVO.java`
+  - `model/src/main/java/com/manifestreader/model/vo/FreightOrderVO.java`
+  - `service/service-user/src/main/java/com/manifestreader/user/feign/MarketUserFeignClient.java`
+  - `service/service-user/src/main/java/com/manifestreader/user/service/market/UserMarketService.java`
+  - `service/service-user/src/main/java/com/manifestreader/user/service/impl/UserMarketServiceImpl.java`
+  - `service/service-user/src/main/java/com/manifestreader/user/controller/market/UserMarketController.java`
+  - `service/service-user/src/test/java/com/manifestreader/user/feign/UserFeignContractTest.java`
+  - `service/service-user/src/test/java/com/manifestreader/user/service/market/UserMarketServiceImplTest.java`
+  - `service/service-market/src/main/java/com/manifestreader/market/service/FreightDemandService.java`
+  - `service/service-market/src/main/java/com/manifestreader/market/service/impl/FreightDemandServiceImpl.java`
+  - `service/service-market/src/main/java/com/manifestreader/market/controller/FreightDemandController.java`
+  - `service/service-market/src/main/java/com/manifestreader/market/controller/MarketOrderController.java`
+  - `service/service-market/src/test/java/com/manifestreader/market/service/impl/FreightDemandServiceImplTest.java`
+  - `frontend/client/src/api/clientApi.js`
+  - `frontend/admin/src/api/adminApi.js`
+
+### Phase 20.2: Verification Baseline Note
+- **Status:** complete
+- **Started:** 2026-05-03 12:02:00 CST
+- Actions taken:
+  - 执行 `./mvnw -pl service/service-user,service/service-market -am -Dtest=UserFeignContractTest,UserMarketServiceImplTest,FreightDemandServiceImplTest -Dsurefire.failIfNoSpecifiedTests=false test`，新增商城用户入口定向测试通过。
+  - 执行 `./mvnw -pl gateway,service/service-user,service/service-market,service/service-admin -am -DskipTests package`，相关模块聚合打包通过。
+  - 执行 `./mvnw -pl service/service-user,service/service-market,service/service-admin -am test` 时，识别出 `service-user` 既有异步任务集成测试 4 项失败，作为后续可靠性修复基线单独记录。
+- Files created/modified:
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+### Phase 20.3: Marketplace Lifecycle Transitions
+- **Status:** complete
+- **Started:** 2026-05-03 12:08:00 CST
+- Actions taken:
+  - 为商城后端补充需求取消、报价撤回、订单开工、订单完结四个核心状态流转动作。
+  - 将订单履约节点写入 `freight_order_timeline`，补齐 `ORDER_STARTED` 与 `ORDER_COMPLETED` 事件。
+  - 同步扩展 `service-user` 的 Feign / Service / Controller 入口，保持用户端统一走 `/user/market/**`。
+  - 为 `frontend/client` 补充取消需求、撤回报价、开工、完结的 API 函数。
+  - 扩展真实集成测试，验证“接单 -> 开工 -> 完结”后时间线累计 3 条、需求状态为 `COMPLETED`。
+- Files created/modified:
+  - `service/service-market/src/main/java/com/manifestreader/market/service/FreightDemandService.java`
+  - `service/service-market/src/main/java/com/manifestreader/market/service/impl/FreightDemandServiceImpl.java`
+  - `service/service-market/src/main/java/com/manifestreader/market/controller/FreightDemandController.java`
+  - `service/service-market/src/main/java/com/manifestreader/market/controller/MarketOrderController.java`
+  - `service/service-market/src/test/java/com/manifestreader/market/service/impl/FreightDemandServiceImplTest.java`
+  - `service/service-market/src/test/java/com/manifestreader/market/integration/FreightDemandIntegrationTest.java`
+  - `service/service-user/src/main/java/com/manifestreader/user/feign/MarketUserFeignClient.java`
+  - `service/service-user/src/main/java/com/manifestreader/user/service/market/UserMarketService.java`
+  - `service/service-user/src/main/java/com/manifestreader/user/service/impl/UserMarketServiceImpl.java`
+  - `service/service-user/src/main/java/com/manifestreader/user/controller/market/UserMarketController.java`
+  - `service/service-user/src/test/java/com/manifestreader/user/service/market/UserMarketServiceImplTest.java`
+  - `frontend/client/src/api/clientApi.js`
+
+### Phase 21.1: Marketplace Client Workspace Refactor
+- **Status:** complete
+- **Started:** 2026-05-03 12:22:00 CST
+- Actions taken:
+  - 在 `frontend/client` 新增商城主导航页，整合市场大厅、我的发布、我的接单三个用户端工作区。
+  - 将商城页接入真实 `/user/market/**` 接口，补齐需求分页、详情、报价列表、发布需求、提交报价、接受报价、开始履约、确认完结动作。
+  - 统一商城状态文案、通知提示、分页切换与移动端布局，去掉页面级静态占位逻辑。
+  - 登录后预加载商城数据，确保用户总览和商城页切换时能直接看到真实记录。
+  - 执行 `frontend/client` 生产构建，验证市场页模板、脚本和样式闭合。
+- Files created/modified:
+  - `frontend/client/src/App.vue`
+  - `frontend/client/src/styles.css`
+
+### Phase 21.2: Marketplace Admin Review Workspace
+- **Status:** complete
+- **Started:** 2026-05-03 12:36:00 CST
+- Actions taken:
+  - 为 `frontend/admin` 新增“商城审核管理”导航与页面，形成审核列表 + 详情 + 审核动作的管理端闭环。
+  - 接通真实 `/admin/market/demands/review/page` 与 `/admin/market/demands/{id}/audit` 接口，并为本地开发补充 mock fallback。
+  - 补充审核页双栏布局、状态展示、分页与审核备注交互，明确管理端只做统筹审核、不承接用户前台交易动作。
+  - 执行 `frontend/admin` 生产构建，验证模板、脚本与样式闭合。
+- Files created/modified:
+  - `frontend/admin/src/App.vue`
+  - `frontend/admin/src/api/adminApi.js`
+  - `frontend/admin/src/mock/adminMock.js`
+  - `frontend/admin/src/styles.css`

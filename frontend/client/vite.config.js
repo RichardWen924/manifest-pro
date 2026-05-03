@@ -8,11 +8,11 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       "/user": {
-        target: "http://127.0.0.1:8082",
+        target: "http://127.0.0.1:18082",
         changeOrigin: true,
       },
       "/auth": {
-        target: "http://127.0.0.1:8083",
+        target: "http://127.0.0.1:18083",
         changeOrigin: true,
       },
     },

@@ -157,6 +157,284 @@
         </section>
       </section>
 
+      <section v-if="currentView === 'market'" class="panel-card market-panel">
+        <div class="panel-title">
+          <div>
+            <p class="eyebrow panel-eyebrow">{{ currentMeta.eyebrow }}</p>
+            <h2>货运商城</h2>
+            <p>把货运需求、报价接单和履约进度放进同一个工作台，用户端直接管理自己的发布和接单。</p>
+            <div class="inline-stat-list panel-stat-list" aria-label="Marketplace summary">
+              <span v-for="item in marketQuickStats" :key="item.label" class="inline-stat">
+                <strong>{{ item.value }}</strong>
+                <small>{{ item.label }}</small>
+              </span>
+            </div>
+          </div>
+          <div class="bill-actions">
+            <button class="ghost-button" type="button" @click="resetMarketFilters">重置</button>
+            <button class="primary-button" type="button" @click="openMarketDemandEditor">发布货运需求</button>
+          </div>
+        </div>
+
+        <div class="market-shell">
+          <section class="market-list-pane">
+            <div class="market-tab-strip">
+              <button class="market-tab" :class="{ active: marketTab === 'browse' }" type="button" @click="switchMarketTab('browse')">市场大厅</button>
+              <button class="market-tab" :class="{ active: marketTab === 'mine' }" type="button" @click="switchMarketTab('mine')">我的发布</button>
+              <button class="market-tab" :class="{ active: marketTab === 'orders' }" type="button" @click="switchMarketTab('orders')">我的接单</button>
+            </div>
+
+            <div v-if="marketTab !== 'orders'" class="bill-toolbar market-toolbar">
+              <label>
+                关键词
+                <input v-model.trim="marketQuery.keyword" placeholder="商品名称 / 起运港 / 目的港" @keyup.enter="searchMarketRecords" />
+              </label>
+              <label>
+                状态
+                <select v-model="marketQuery.status" @change="searchMarketRecords">
+                  <option value="">全部状态</option>
+                  <option value="PENDING_REVIEW">待审核</option>
+                  <option value="PUBLISHED">待报价</option>
+                  <option value="QUOTING">报价中</option>
+                  <option value="LOCKED">已锁单</option>
+                  <option value="FULFILLING">履约中</option>
+                  <option value="COMPLETED">已完结</option>
+                  <option value="CANCELLED">已取消</option>
+                </select>
+              </label>
+              <button class="secondary-button" type="button" @click="searchMarketRecords">查询</button>
+            </div>
+
+            <form v-if="marketDemandEditor.open" class="bill-editor market-demand-editor" novalidate @submit.prevent="submitMarketDemand">
+              <div class="editor-title">
+                <div>
+                  <strong>发布货运需求</strong>
+                </div>
+                <button class="ghost-button" type="button" @click="closeMarketDemandEditor">取消</button>
+              </div>
+              <div class="editor-grid">
+                <label>
+                  需求标题
+                  <input v-model.trim="marketDemandForm.title" placeholder="上海到鹿特丹整柜运输" />
+                </label>
+                <label>
+                  商品名称
+                  <input v-model.trim="marketDemandForm.goodsName" placeholder="机械设备" />
+                </label>
+                <label>
+                  起运港
+                  <input v-model.trim="marketDemandForm.departurePort" placeholder="SHANGHAI" />
+                </label>
+                <label>
+                  目的港
+                  <input v-model.trim="marketDemandForm.destinationPort" placeholder="ROTTERDAM" />
+                </label>
+                <label>
+                  期望船期
+                  <input v-model="marketDemandForm.expectedShippingDate" type="date" />
+                </label>
+                <label>
+                  数量
+                  <input v-model.number="marketDemandForm.quantity" type="number" min="0" placeholder="10" />
+                </label>
+                <label>
+                  单位
+                  <input v-model.trim="marketDemandForm.quantityUnit" placeholder="BOX / CBM / TON" />
+                </label>
+                <label>
+                  预算金额
+                  <input v-model.number="marketDemandForm.budgetAmount" type="number" min="0" placeholder="5000" />
+                </label>
+                <label>
+                  币种
+                  <input v-model.trim="marketDemandForm.currencyCode" placeholder="CNY" />
+                </label>
+                <label>
+                  联系人
+                  <input v-model.trim="marketDemandForm.contactName" placeholder="张三" />
+                </label>
+                <label>
+                  联系电话
+                  <input v-model.trim="marketDemandForm.contactPhone" placeholder="13800000000" />
+                </label>
+                <label class="editor-grid-wide">
+                  备注
+                  <textarea v-model.trim="marketDemandForm.remark" rows="3" placeholder="补充货物情况、报关要求或时效要求"></textarea>
+                </label>
+              </div>
+              <p v-if="marketDemandEditor.error" class="form-error">{{ marketDemandEditor.error }}</p>
+              <button class="primary-button full" type="submit" :disabled="marketSavingDemand">
+                {{ marketSavingDemand ? "正在提交" : "提交需求" }}
+              </button>
+            </form>
+
+            <div class="market-list">
+              <button
+                v-for="item in marketTab === 'orders' ? myAcceptedOrders : activeMarketDemandRecords"
+                :key="item.id"
+                class="market-list-card"
+                :class="{ active: marketTab === 'orders' ? selectedMarketOrderId === item.id : selectedMarketDemandId === item.id }"
+                type="button"
+                @click="selectMarketRecord(item)"
+              >
+                <template v-if="marketTab === 'orders'">
+                  <div class="market-list-head">
+                    <strong>{{ item.orderNo }}</strong>
+                    <span class="pill">{{ formatMarketOrderStatus(item.orderStatus) }}</span>
+                  </div>
+                  <p>需求 #{{ item.demandId }}</p>
+                  <small>成交报价 #{{ item.acceptedQuoteId }}</small>
+                </template>
+                <template v-else>
+                  <div class="market-list-head">
+                    <strong>{{ item.title }}</strong>
+                    <span class="pill">{{ formatMarketDemandStatus(item.demandStatus) }}</span>
+                  </div>
+                  <p>{{ item.goodsName }} · {{ item.departurePort }} → {{ item.destinationPort }}</p>
+                  <small>{{ item.currencyCode || "CNY" }} {{ item.budgetAmount || "-" }}</small>
+                </template>
+              </button>
+            </div>
+
+            <div v-if="!(marketTab === 'orders' ? myAcceptedOrders.length : activeMarketDemandRecords.length)" class="empty-state">
+              {{ marketTab === "browse" ? "暂无可浏览的货运需求。" : marketTab === "mine" ? "你还没有发布货运需求。" : "你还没有接单记录。" }}
+            </div>
+
+            <div class="pagination-bar" v-if="marketTab === 'browse' || marketTab === 'mine'">
+              <span>
+                {{ marketTab === "browse"
+                  ? `共 ${marketPage.total} 条，第 ${marketPage.current} / ${marketTotalPages} 页`
+                  : `共 ${myMarketPage.total} 条，第 ${myMarketPage.current} / ${myMarketTotalPages} 页` }}
+              </span>
+              <div>
+                <button class="ghost-button" type="button" @click="changeMarketPage(-1)" :disabled="marketTab === 'browse' ? marketPage.current <= 1 : myMarketPage.current <= 1">上一页</button>
+                <button class="ghost-button" type="button" @click="changeMarketPage(1)" :disabled="marketTab === 'browse' ? marketPage.current >= marketTotalPages : myMarketPage.current >= myMarketTotalPages">下一页</button>
+              </div>
+            </div>
+
+            <div class="pagination-bar" v-else>
+              <span>共 {{ orderPage.total }} 条，第 {{ orderPage.current }} / {{ orderTotalPages }} 页</span>
+              <div>
+                <button class="ghost-button" type="button" @click="changeOrderPage(-1)" :disabled="orderPage.current <= 1">上一页</button>
+                <button class="ghost-button" type="button" @click="changeOrderPage(1)" :disabled="orderPage.current >= orderTotalPages">下一页</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel-card market-detail-pane">
+            <template v-if="marketTab === 'orders'">
+              <div v-if="selectedMarketOrder" class="market-detail-stack">
+                <div class="market-detail-head">
+                  <div>
+                    <p class="eyebrow">Order Detail</p>
+                    <h3>{{ selectedMarketOrder.orderNo }}</h3>
+                  </div>
+                  <span class="pill">{{ formatMarketOrderStatus(selectedMarketOrder.orderStatus) }}</span>
+                </div>
+                <div class="detail-grid market-detail-grid">
+                  <div class="detail-field"><span>需求 ID</span><strong>{{ selectedMarketOrder.demandId }}</strong></div>
+                  <div class="detail-field"><span>成交报价</span><strong>#{{ selectedMarketOrder.acceptedQuoteId }}</strong></div>
+                  <div class="detail-field"><span>订单状态</span><strong>{{ formatMarketOrderStatus(selectedMarketOrder.orderStatus) }}</strong></div>
+                </div>
+                <div class="market-action-row">
+                  <button class="primary-button" type="button" :disabled="selectedMarketOrder.orderStatus !== 'CREATED' || marketProcessingOrder" @click="startSelectedOrder(selectedMarketOrder.id)">
+                    {{ marketProcessingOrder && selectedMarketOrder.orderStatus === "CREATED" ? "正在开工" : "开始履约" }}
+                  </button>
+                </div>
+              </div>
+              <div v-else class="market-detail-empty">
+                <h3>选择一条接单记录</h3>
+                <p>这里会展示履约状态，并提供“开始履约”操作。</p>
+              </div>
+            </template>
+
+            <template v-else>
+              <div v-if="selectedMarketDemandDetail" class="market-detail-stack">
+                <div class="market-detail-head">
+                  <div>
+                    <p class="eyebrow">Demand Detail</p>
+                    <h3>{{ selectedMarketDemandDetail.title }}</h3>
+                    <p>{{ selectedMarketDemandDetail.goodsName }} · {{ selectedMarketDemandDetail.departurePort }} → {{ selectedMarketDemandDetail.destinationPort }}</p>
+                  </div>
+                  <div class="market-status-stack">
+                    <span class="pill">{{ formatMarketDemandStatus(selectedMarketDemandDetail.demandStatus) }}</span>
+                    <span class="pill muted">{{ formatMarketAuditStatus(selectedMarketDemandDetail.auditStatus) }}</span>
+                  </div>
+                </div>
+
+                <div class="detail-grid market-detail-grid">
+                  <div class="detail-field"><span>预算</span><strong>{{ selectedMarketDemandDetail.currencyCode || "CNY" }} {{ selectedMarketDemandDetail.budgetAmount || "-" }}</strong></div>
+                  <div class="detail-field"><span>数量</span><strong>{{ selectedMarketDemandDetail.quantity || "-" }} {{ selectedMarketDemandDetail.quantityUnit || "" }}</strong></div>
+                  <div class="detail-field"><span>期望船期</span><strong>{{ selectedMarketDemandDetail.expectedShippingDate || "-" }}</strong></div>
+                  <div class="detail-field"><span>联系人</span><strong>{{ selectedMarketDemandDetail.contactName || "-" }}</strong></div>
+                  <div class="detail-field"><span>联系电话</span><strong>{{ selectedMarketDemandDetail.contactPhone || "-" }}</strong></div>
+                  <div class="detail-field detail-field-wide"><span>备注</span><strong>{{ selectedMarketDemandDetail.remark || "暂无备注" }}</strong></div>
+                </div>
+
+                <div v-if="marketTab === 'mine'" class="market-action-row">
+                  <button class="danger-button" type="button" :disabled="!canCancelSelectedDemand" @click="cancelSelectedDemand">取消需求</button>
+                  <button class="primary-button" type="button" :disabled="!canCompleteSelectedDemandOrder || marketProcessingOrder" @click="completeSelectedDemandOrder">
+                    {{ marketProcessingOrder && canCompleteSelectedDemandOrder ? "正在完结" : "确认完结" }}
+                  </button>
+                </div>
+
+                <section v-if="marketTab === 'browse'" class="market-quote-form">
+                  <div class="panel-title compact">
+                    <h3>提交报价</h3>
+                    <p>作为代理方提交报价，后续可在“我的接单”中查看状态。</p>
+                  </div>
+                  <div class="editor-grid">
+                    <label>
+                      报价金额
+                      <input v-model.number="marketQuoteForm.priceAmount" type="number" min="0" placeholder="4800" />
+                    </label>
+                    <label>
+                      币种
+                      <input v-model.trim="marketQuoteForm.currencyCode" placeholder="CNY" />
+                    </label>
+                    <label>
+                      预计天数
+                      <input v-model.number="marketQuoteForm.estimatedDays" type="number" min="0" placeholder="12" />
+                    </label>
+                    <label class="editor-grid-wide">
+                      服务说明
+                      <textarea v-model.trim="marketQuoteForm.serviceNote" rows="3" placeholder="可提供拖车、报关与提箱服务"></textarea>
+                    </label>
+                  </div>
+                  <button class="primary-button" type="button" :disabled="marketSubmittingQuote" @click="submitSelectedDemandQuote">
+                    {{ marketSubmittingQuote ? "正在报价" : "提交报价" }}
+                  </button>
+                </section>
+
+                <section class="market-quote-board">
+                  <div class="panel-title compact">
+                    <h3>报价列表</h3>
+                    <p>{{ selectedMarketQuotes.length ? `当前共 ${selectedMarketQuotes.length} 条报价。` : "当前还没有报价记录。" }}</p>
+                  </div>
+                  <div class="market-quote-list">
+                    <article v-for="quote in selectedMarketQuotes" :key="quote.id" class="market-quote-card">
+                      <div class="market-list-head">
+                        <strong>{{ quote.currencyCode || "CNY" }} {{ quote.priceAmount || "-" }}</strong>
+                        <span class="pill">{{ formatMarketQuoteStatus(quote.quoteStatus) }}</span>
+                      </div>
+                      <p>{{ quote.serviceNote || "暂无服务说明" }}</p>
+                      <small>预计 {{ quote.estimatedDays || "-" }} 天</small>
+                      <div v-if="marketTab === 'mine'" class="market-action-row compact">
+                        <button class="secondary-button" type="button" :disabled="quote.quoteStatus !== 'SUBMITTED'" @click="acceptSelectedQuote(quote.id)">接受报价</button>
+                      </div>
+                    </article>
+                  </div>
+                </section>
+              </div>
+              <div v-else class="market-detail-empty">
+                <h3>选择一条货运需求</h3>
+                <p>这里会展示需求详情、报价列表，以及你能执行的发布或接单动作。</p>
+              </div>
+            </template>
+          </section>
+        </div>
+      </section>
+
       <section v-if="currentView === 'bills'" class="panel-card">
         <div class="panel-title">
           <div>
@@ -818,13 +1096,21 @@
 <script setup>
 import { computed, reactive, ref } from "vue";
 import {
+  acceptMarketQuote,
   buildUserApiUrl,
+  cancelMarketDemand,
   createBill,
+  createMarketDemand,
   deleteBill,
   deleteTemplateDefinition,
   extractTemplateFile,
   exportTemplateFile,
   fetchBillPage,
+  fetchMarketDemandDetail,
+  fetchMarketDemandPage,
+  fetchMarketQuotes,
+  fetchMyAcceptedOrders,
+  fetchMyMarketDemands,
   fetchExportableTemplates,
   fetchTemplateManagePage,
   getTemplateSaveTask,
@@ -832,7 +1118,10 @@ import {
   registerClient,
   saveExtractedBillData,
   saveGeneratedTemplate,
+  startMarketOrder,
   setAccessToken,
+  submitMarketQuote,
+  completeMarketOrder,
   updateTemplateStatus,
   updateBill,
 } from "./api/clientApi";
@@ -864,6 +1153,7 @@ const session = reactive({
 
 const sidebarCollapsed = ref(false);
 const currentView = ref("overview");
+const marketTab = ref("browse");
 const selectedBillIds = ref([]);
 const extractFile = ref(null);
 const exportFile = ref(null);
@@ -882,6 +1172,11 @@ const extractSaveFeedback = reactive({
 const toasts = ref([]);
 const loginError = ref("");
 const registerError = ref("");
+const marketListLoading = ref(false);
+const marketDetailLoading = ref(false);
+const marketSavingDemand = ref(false);
+const marketSubmittingQuote = ref(false);
+const marketProcessingOrder = ref(false);
 
 const exportForm = reactive({
   templateId: "tpl-001",
@@ -898,6 +1193,11 @@ const templateQuery = reactive({
   status: "",
 });
 
+const marketQuery = reactive({
+  keyword: "",
+  status: "",
+});
+
 const billPage = reactive({
   current: 1,
   size: 5,
@@ -905,6 +1205,24 @@ const billPage = reactive({
 });
 
 const templatePage = reactive({
+  current: 1,
+  size: 8,
+  total: 0,
+});
+
+const marketPage = reactive({
+  current: 1,
+  size: 8,
+  total: 0,
+});
+
+const myMarketPage = reactive({
+  current: 1,
+  size: 8,
+  total: 0,
+});
+
+const orderPage = reactive({
   current: 1,
   size: 8,
   total: 0,
@@ -920,8 +1238,14 @@ const billDetailDialog = reactive({
   open: false,
   billId: "",
 });
+const marketDemandEditor = reactive({
+  open: false,
+  error: "",
+});
 
 const billForm = reactive(createEmptyBillForm());
+const marketDemandForm = reactive(createEmptyMarketDemandForm());
+const marketQuoteForm = reactive(createEmptyMarketQuoteForm());
 
 const prototypeBills = [
   {
@@ -1003,10 +1327,13 @@ const iconMap = Object.freeze({
     '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M5 7a2 2 0 0 0-2 2v11"/><path d="M5.803 18H5a2 2 0 0 0 0 4h9.5a.5.5 0 0 0 .5-.5V21m-6-6V4a2 2 0 0 1 2-2h9.5a.5.5 0 0 1 .5.5v14a.5.5 0 0 1-.5.5H11a2 2 0 0 1 0-4h10"/></g></svg>',
   output:
     '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M4.226 20.925A2 2 0 0 0 6 22h12a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v3.127"/><path d="M14 2v5a1 1 0 0 0 1 1h5M5 11l-3 3m3 3l-3-3h10"/></g></svg>',
+  market:
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M3 7.5h18"/><path d="M5 7.5V18a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V7.5"/><path d="M8 11h8"/><path d="M9 15h3"/><path d="M6 4h12l1 3.5H5z"/></g></svg>',
 });
 
 const navItems = [
   { key: "overview", label: "用户总览", icon: "dashboard" },
+  { key: "market", label: "货运商城", icon: "market" },
   { key: "bills", label: "已存提单数据", icon: "files" },
   { key: "extract", label: "提单模版提取", icon: "searchFile" },
   { key: "templates", label: "模板管理", icon: "library" },
@@ -1018,6 +1345,11 @@ const metaMap = {
     eyebrow: "Overview",
     title: "用户总览",
     description: "",
+  },
+  market: {
+    eyebrow: "Freight Marketplace",
+    title: "货运商城",
+    description: "浏览货运需求、发布自己的货盘并管理接单履约。",
   },
   bills: {
     eyebrow: "Stored BL Data",
@@ -1044,6 +1376,13 @@ const metaMap = {
 const savedBills = ref([...prototypeBills]);
 
 const templateOptions = ref([]);
+const marketDemands = ref([]);
+const myMarketDemands = ref([]);
+const myAcceptedOrders = ref([]);
+const selectedMarketDemandId = ref("");
+const selectedMarketOrderId = ref("");
+const selectedMarketDemandDetail = ref(null);
+const selectedMarketQuotes = ref([]);
 
 const extractedTemplates = ref([]);
 const managedTemplates = ref([]);
@@ -1061,12 +1400,21 @@ const currentMeta = computed(() => metaMap[currentView.value]);
 const avatarText = computed(() => (session.nickname || session.username || "U").slice(0, 2).toUpperCase());
 const clientQuickStats = computed(() => [
   { label: "提单记录", value: savedBills.value.length },
+  { label: "货运需求", value: myMarketDemands.value.length },
   { label: "模板库", value: managedTemplates.value.length },
   { label: "导出队列", value: exportJobs.value.length },
+]);
+const marketQuickStats = computed(() => [
+  { label: "市场需求", value: marketDemands.value.length },
+  { label: "我的发布", value: myMarketDemands.value.length },
+  { label: "我的接单", value: myAcceptedOrders.value.length },
 ]);
 const activeBillDetail = computed(() => savedBills.value.find((bill) => bill.id === billDetailDialog.billId));
 const billTotalPages = computed(() => Math.max(1, Math.ceil(billPage.total / billPage.size)));
 const templateTotalPages = computed(() => Math.max(1, Math.ceil(templatePage.total / templatePage.size)));
+const marketTotalPages = computed(() => Math.max(1, Math.ceil(marketPage.total / marketPage.size)));
+const myMarketTotalPages = computed(() => Math.max(1, Math.ceil(myMarketPage.total / myMarketPage.size)));
+const orderTotalPages = computed(() => Math.max(1, Math.ceil(orderPage.total / orderPage.size)));
 const currentExtractFileKey = computed(() => (extractFile.value ? buildFileKey(extractFile.value) : ""));
 const isCurrentExtractFileDone = computed(() => Boolean(currentExtractFileKey.value && extractedFileKeys.value.has(currentExtractFileKey.value)));
 const selectedExtractResult = computed(() => extractedTemplates.value.find((item) => item.id === selectedExtractId.value));
@@ -1083,6 +1431,20 @@ const extractButtonText = computed(() => {
 const allCurrentBillsSelected = computed(
   () => savedBills.value.length > 0 && savedBills.value.every((bill) => selectedBillIds.value.includes(bill.id))
 );
+const activeMarketDemandRecords = computed(() => marketTab.value === "browse" ? marketDemands.value : myMarketDemands.value);
+const selectedMarketOrder = computed(() => myAcceptedOrders.value.find((item) => item.id === selectedMarketOrderId.value));
+const canCancelSelectedDemand = computed(() => {
+  const detail = selectedMarketDemandDetail.value;
+  return marketTab.value === "mine"
+    && Boolean(detail)
+    && ["PENDING_REVIEW", "PUBLISHED", "QUOTING", "REJECTED"].includes(detail.demandStatus);
+});
+const canCompleteSelectedDemandOrder = computed(() => {
+  const detail = selectedMarketDemandDetail.value;
+  return marketTab.value === "mine"
+    && Boolean(detail?.acceptedOrderId)
+    && detail.demandStatus === "FULFILLING";
+});
 
 function getIconSvg(name) {
   return iconMap[name] || "";
@@ -1103,7 +1465,7 @@ async function login() {
     session.nickname = result.username === "tenant_user" ? "测试用户" : result.username || loginPayload.username;
     session.companyCode = (loginPayload.companyCode || "TEST").toUpperCase();
     notify("登录成功", "已通过 auth-service 校验，正在同步用户端数据。", "backend");
-    await Promise.allSettled([loadBills(), loadTemplates(), loadManagedTemplates()]);
+    await Promise.allSettled([loadBills(), loadTemplates(), loadManagedTemplates(), preloadMarketWorkspace()]);
   } catch (error) {
     loginError.value = error.message || "请检查 auth-service、账号密码和数据库连接。";
   }
@@ -1194,14 +1556,422 @@ function logout() {
   setAccessToken("");
   session.loggedIn = false;
   currentView.value = "overview";
+  marketTab.value = "browse";
+  marketDemands.value = [];
+  myMarketDemands.value = [];
+  myAcceptedOrders.value = [];
+  selectedMarketDemandId.value = "";
+  selectedMarketOrderId.value = "";
+  selectedMarketDemandDetail.value = null;
+  selectedMarketQuotes.value = [];
   notify("已退出", "客户端会话已结束。", "backend");
 }
 
 function switchView(view) {
   currentView.value = view;
-  if (view === "templates") {
+  if (view === "market") {
+    loadMarketRecords();
+  } else if (view === "templates") {
     loadManagedTemplates();
   }
+}
+
+async function preloadMarketWorkspace() {
+  await Promise.allSettled([
+    loadMarketBrowsePage({ preserveSelection: false }),
+    loadMyMarketDemandsPage({ preserveSelection: false }),
+    loadMyAcceptedOrdersPage({ preserveSelection: false }),
+  ]);
+}
+
+async function loadMarketRecords() {
+  if (marketTab.value === "browse") {
+    await loadMarketBrowsePage();
+    return;
+  }
+  if (marketTab.value === "mine") {
+    await loadMyMarketDemandsPage();
+    return;
+  }
+  await loadMyAcceptedOrdersPage();
+}
+
+async function loadMarketBrowsePage(options = {}) {
+  marketListLoading.value = true;
+  try {
+    const page = await fetchMarketDemandPage({
+      pageNo: marketPage.current,
+      pageSize: marketPage.size,
+      keyword: marketQuery.keyword,
+      status: marketQuery.status,
+    });
+    marketDemands.value = Array.isArray(page?.records) ? page.records : [];
+    marketPage.current = Number(page?.current || marketPage.current);
+    marketPage.size = Number(page?.size || marketPage.size);
+    marketPage.total = Number(page?.total || 0);
+    await syncSelectedMarketDemand(options.preserveSelection !== false ? selectedMarketDemandId.value : "");
+  } catch (error) {
+    marketDemands.value = [];
+    marketPage.total = 0;
+    clearSelectedMarketDemand();
+    notify("货运商城加载失败", error.message || "请检查 market-service。", "error");
+  } finally {
+    marketListLoading.value = false;
+  }
+}
+
+async function loadMyMarketDemandsPage(options = {}) {
+  marketListLoading.value = true;
+  try {
+    const page = await fetchMyMarketDemands({
+      pageNo: myMarketPage.current,
+      pageSize: myMarketPage.size,
+      keyword: marketQuery.keyword,
+      status: marketQuery.status,
+    });
+    myMarketDemands.value = Array.isArray(page?.records) ? page.records : [];
+    myMarketPage.current = Number(page?.current || myMarketPage.current);
+    myMarketPage.size = Number(page?.size || myMarketPage.size);
+    myMarketPage.total = Number(page?.total || 0);
+    await syncSelectedMarketDemand(options.preserveSelection !== false ? selectedMarketDemandId.value : "");
+  } catch (error) {
+    myMarketDemands.value = [];
+    myMarketPage.total = 0;
+    clearSelectedMarketDemand();
+    notify("我的发布加载失败", error.message || "请检查 market-service。", "error");
+  } finally {
+    marketListLoading.value = false;
+  }
+}
+
+async function loadMyAcceptedOrdersPage(options = {}) {
+  marketListLoading.value = true;
+  try {
+    const page = await fetchMyAcceptedOrders({
+      pageNo: orderPage.current,
+      pageSize: orderPage.size,
+    });
+    myAcceptedOrders.value = Array.isArray(page?.records) ? page.records : [];
+    orderPage.current = Number(page?.current || orderPage.current);
+    orderPage.size = Number(page?.size || orderPage.size);
+    orderPage.total = Number(page?.total || 0);
+    syncSelectedMarketOrder(options.preserveSelection !== false ? selectedMarketOrderId.value : "");
+  } catch (error) {
+    myAcceptedOrders.value = [];
+    orderPage.total = 0;
+    selectedMarketOrderId.value = "";
+    notify("我的接单加载失败", error.message || "请检查 market-service。", "error");
+  } finally {
+    marketListLoading.value = false;
+  }
+}
+
+async function syncSelectedMarketDemand(preferredId = "") {
+  const records = activeMarketDemandRecords.value;
+  if (!records.length) {
+    clearSelectedMarketDemand();
+    return;
+  }
+  const matched = records.find((item) => item.id === preferredId);
+  const targetId = matched?.id || records[0].id;
+  await loadMarketDemandDetailById(targetId);
+}
+
+function syncSelectedMarketOrder(preferredId = "") {
+  if (!myAcceptedOrders.value.length) {
+    selectedMarketOrderId.value = "";
+    return;
+  }
+  const matched = myAcceptedOrders.value.find((item) => item.id === preferredId);
+  selectedMarketOrderId.value = matched?.id || myAcceptedOrders.value[0].id;
+}
+
+function clearSelectedMarketDemand() {
+  selectedMarketDemandId.value = "";
+  selectedMarketDemandDetail.value = null;
+  selectedMarketQuotes.value = [];
+}
+
+async function loadMarketDemandDetailById(demandId) {
+  if (!demandId) {
+    clearSelectedMarketDemand();
+    return;
+  }
+  marketDetailLoading.value = true;
+  try {
+    const [detail, quotes] = await Promise.all([
+      fetchMarketDemandDetail(demandId),
+      fetchMarketQuotes(demandId),
+    ]);
+    selectedMarketDemandId.value = demandId;
+    selectedMarketDemandDetail.value = detail;
+    selectedMarketQuotes.value = Array.isArray(quotes) ? quotes : [];
+  } catch (error) {
+    clearSelectedMarketDemand();
+    notify("需求详情加载失败", error.message || "请检查 market-service。", "error");
+  } finally {
+    marketDetailLoading.value = false;
+  }
+}
+
+function switchMarketTab(tab) {
+  if (marketTab.value === tab) {
+    return;
+  }
+  marketTab.value = tab;
+  if (tab === "orders") {
+    selectedMarketDemandId.value = "";
+    selectedMarketDemandDetail.value = null;
+    selectedMarketQuotes.value = [];
+  } else {
+    selectedMarketOrderId.value = "";
+  }
+  loadMarketRecords();
+}
+
+function searchMarketRecords() {
+  if (marketTab.value === "browse") {
+    marketPage.current = 1;
+  } else if (marketTab.value === "mine") {
+    myMarketPage.current = 1;
+  } else {
+    orderPage.current = 1;
+  }
+  loadMarketRecords();
+}
+
+function resetMarketFilters() {
+  marketQuery.keyword = "";
+  marketQuery.status = "";
+  marketPage.current = 1;
+  myMarketPage.current = 1;
+  orderPage.current = 1;
+  loadMarketRecords();
+}
+
+function changeMarketPage(step) {
+  const pageState = marketTab.value === "browse" ? marketPage : myMarketPage;
+  const totalPages = marketTab.value === "browse" ? marketTotalPages.value : myMarketTotalPages.value;
+  const nextPage = pageState.current + step;
+  if (nextPage < 1 || nextPage > totalPages) {
+    return;
+  }
+  pageState.current = nextPage;
+  loadMarketRecords();
+}
+
+function changeOrderPage(step) {
+  const nextPage = orderPage.current + step;
+  if (nextPage < 1 || nextPage > orderTotalPages.value) {
+    return;
+  }
+  orderPage.current = nextPage;
+  loadMyAcceptedOrdersPage();
+}
+
+function openMarketDemandEditor() {
+  marketDemandEditor.open = true;
+  marketDemandEditor.error = "";
+}
+
+function closeMarketDemandEditor() {
+  marketDemandEditor.open = false;
+  marketDemandEditor.error = "";
+  Object.assign(marketDemandForm, createEmptyMarketDemandForm());
+}
+
+async function submitMarketDemand() {
+  marketDemandEditor.error = validateMarketDemandForm();
+  if (marketDemandEditor.error) {
+    return;
+  }
+  marketSavingDemand.value = true;
+  try {
+    await createMarketDemand({
+      ...marketDemandForm,
+      expectedShippingDate: marketDemandForm.expectedShippingDate || null,
+      quantity: marketDemandForm.quantity === "" || marketDemandForm.quantity == null ? null : Number(marketDemandForm.quantity),
+      budgetAmount: marketDemandForm.budgetAmount === "" || marketDemandForm.budgetAmount == null ? null : Number(marketDemandForm.budgetAmount),
+    });
+    notify("需求已发布", "货运需求已提交，等待管理端审核上架。", "backend");
+    closeMarketDemandEditor();
+    marketTab.value = "mine";
+    myMarketPage.current = 1;
+    await loadMyMarketDemandsPage({ preserveSelection: false });
+  } catch (error) {
+    marketDemandEditor.error = error.message || "需求发布失败。";
+  } finally {
+    marketSavingDemand.value = false;
+  }
+}
+
+function validateMarketDemandForm() {
+  if (!marketDemandForm.title) {
+    return "请输入需求标题。";
+  }
+  if (!marketDemandForm.goodsName) {
+    return "请输入商品名称。";
+  }
+  if (!marketDemandForm.departurePort || !marketDemandForm.destinationPort) {
+    return "请补充起运港和目的港。";
+  }
+  return "";
+}
+
+function selectMarketRecord(item) {
+  if (!item?.id) {
+    return;
+  }
+  if (marketTab.value === "orders") {
+    selectedMarketOrderId.value = item.id;
+    return;
+  }
+  loadMarketDemandDetailById(item.id);
+}
+
+async function submitSelectedDemandQuote() {
+  const detail = selectedMarketDemandDetail.value;
+  if (!detail?.id) {
+    notify("请先选择需求", "在市场大厅中选择一条货运需求后再报价。", "error");
+    return;
+  }
+  if (!marketQuoteForm.priceAmount && marketQuoteForm.priceAmount !== 0) {
+    notify("请填写报价金额", "报价金额不能为空。", "error");
+    return;
+  }
+  marketSubmittingQuote.value = true;
+  try {
+    await submitMarketQuote(detail.id, {
+      priceAmount: Number(marketQuoteForm.priceAmount),
+      currencyCode: marketQuoteForm.currencyCode || "CNY",
+      estimatedDays: marketQuoteForm.estimatedDays === "" || marketQuoteForm.estimatedDays == null ? null : Number(marketQuoteForm.estimatedDays),
+      serviceNote: marketQuoteForm.serviceNote,
+    });
+    notify("报价已提交", "你已向该货运需求提交报价。", "backend");
+    Object.assign(marketQuoteForm, createEmptyMarketQuoteForm());
+    await loadMarketDemandDetailById(detail.id);
+    await loadMarketBrowsePage();
+  } catch (error) {
+    notify("报价失败", error.message || "请检查 market-service。", "error");
+  } finally {
+    marketSubmittingQuote.value = false;
+  }
+}
+
+async function acceptSelectedQuote(quoteId) {
+  const detail = selectedMarketDemandDetail.value;
+  if (!detail?.id || !quoteId) {
+    return;
+  }
+  marketProcessingOrder.value = true;
+  try {
+    await acceptMarketQuote(detail.id, quoteId);
+    notify("报价已接受", "订单已锁定，后续由接单方开始履约。", "backend");
+    await Promise.allSettled([
+      loadMyMarketDemandsPage(),
+      loadMarketBrowsePage(),
+      loadMyAcceptedOrdersPage({ preserveSelection: false }),
+    ]);
+    await loadMarketDemandDetailById(detail.id);
+  } catch (error) {
+    notify("接受报价失败", error.message || "请检查 market-service。", "error");
+  } finally {
+    marketProcessingOrder.value = false;
+  }
+}
+
+async function cancelSelectedDemand() {
+  const detail = selectedMarketDemandDetail.value;
+  if (!detail?.id || !canCancelSelectedDemand.value) {
+    return;
+  }
+  marketProcessingOrder.value = true;
+  try {
+    await cancelMarketDemand(detail.id);
+    notify("需求已取消", "该货运需求和未成交报价已同步关闭。", "backend");
+    await Promise.allSettled([loadMyMarketDemandsPage(), loadMarketBrowsePage()]);
+  } catch (error) {
+    notify("取消需求失败", error.message || "请检查 market-service。", "error");
+  } finally {
+    marketProcessingOrder.value = false;
+  }
+}
+
+async function completeSelectedDemandOrder() {
+  const detail = selectedMarketDemandDetail.value;
+  if (!detail?.acceptedOrderId || !canCompleteSelectedDemandOrder.value) {
+    return;
+  }
+  marketProcessingOrder.value = true;
+  try {
+    await completeMarketOrder(detail.acceptedOrderId);
+    notify("订单已完结", "履约完成，需求状态已同步关闭。", "backend");
+    await Promise.allSettled([loadMyMarketDemandsPage(), loadMyAcceptedOrdersPage()]);
+    await loadMarketDemandDetailById(detail.id);
+  } catch (error) {
+    notify("确认完结失败", error.message || "请检查 market-service。", "error");
+  } finally {
+    marketProcessingOrder.value = false;
+  }
+}
+
+async function startSelectedOrder(orderId) {
+  if (!orderId) {
+    return;
+  }
+  marketProcessingOrder.value = true;
+  try {
+    await startMarketOrder(orderId);
+    notify("履约已开始", "接单记录已进入履约中。", "backend");
+    await loadMyAcceptedOrdersPage();
+  } catch (error) {
+    notify("开始履约失败", error.message || "请检查 market-service。", "error");
+  } finally {
+    marketProcessingOrder.value = false;
+  }
+}
+
+function formatMarketDemandStatus(status) {
+  const statusMap = {
+    PENDING_REVIEW: "待审核",
+    PUBLISHED: "待报价",
+    QUOTING: "报价中",
+    LOCKED: "已锁单",
+    FULFILLING: "履约中",
+    COMPLETED: "已完结",
+    CANCELLED: "已取消",
+    REJECTED: "已驳回",
+  };
+  return statusMap[status] || status || "未知";
+}
+
+function formatMarketAuditStatus(status) {
+  const statusMap = {
+    PENDING: "待审核",
+    APPROVED: "审核通过",
+    REJECTED: "审核驳回",
+  };
+  return statusMap[status] || status || "未知";
+}
+
+function formatMarketQuoteStatus(status) {
+  const statusMap = {
+    SUBMITTED: "已提交",
+    ACCEPTED: "已接受",
+    REJECTED: "已拒绝",
+    WITHDRAWN: "已撤回",
+  };
+  return statusMap[status] || status || "未知";
+}
+
+function formatMarketOrderStatus(status) {
+  const statusMap = {
+    CREATED: "待开工",
+    IN_PROGRESS: "履约中",
+    COMPLETED: "已完结",
+    CANCELLED: "已取消",
+  };
+  return statusMap[status] || status || "未知";
 }
 
 async function loadBills() {
@@ -1974,6 +2744,32 @@ function createEmptyBillForm() {
     packageUnit: "CTN",
     status: "DRAFT",
     remark: "",
+  };
+}
+
+function createEmptyMarketDemandForm() {
+  return {
+    title: "",
+    goodsName: "",
+    departurePort: "",
+    destinationPort: "",
+    expectedShippingDate: "",
+    quantity: "",
+    quantityUnit: "BOX",
+    budgetAmount: "",
+    currencyCode: "CNY",
+    contactName: "",
+    contactPhone: "",
+    remark: "",
+  };
+}
+
+function createEmptyMarketQuoteForm() {
+  return {
+    priceAmount: "",
+    currencyCode: "CNY",
+    estimatedDays: "",
+    serviceNote: "",
   };
 }
 
