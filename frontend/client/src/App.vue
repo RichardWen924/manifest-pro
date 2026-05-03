@@ -136,56 +136,54 @@
     </section>
   </section>
 
-  <section v-else class="client-shell" :class="{ collapsed: sidebarCollapsed }">
-    <aside class="client-sidebar" :class="{ collapsed: sidebarCollapsed }">
-      <div class="profile-block">
-        <div class="avatar" :title="session.nickname">{{ avatarText }}</div>
-        <div v-if="!sidebarCollapsed" class="profile-copy">
-          <strong>{{ session.nickname }}</strong>
-          <span>{{ session.companyCode }}</span>
+  <section v-else class="client-shell workspace-shell">
+    <header class="workspace-topbar">
+      <div class="workspace-brand">
+        <span class="workspace-brand-mark">MR</span>
+        <div>
+          <strong>Manifest Reader</strong>
+          <small>Client Workspace</small>
         </div>
-        <button class="collapse-button" type="button" @click="sidebarCollapsed = !sidebarCollapsed">
-          {{ sidebarCollapsed ? "›" : "‹" }}
-        </button>
       </div>
 
-      <nav class="side-menu" aria-label="Client sidebar">
+      <nav class="workspace-primary-nav" aria-label="Primary workspace navigation">
         <button
-          v-for="item in navItems"
+          v-for="item in primaryNavItems"
           :key="item.key"
-          class="menu-item"
-          :class="{ active: currentView === item.key }"
+          class="workspace-primary-tab"
+          :class="{ active: primaryWorkspace === item.key }"
           type="button"
-          @click="switchView(item.key)"
+          @click="switchPrimaryView(item.key)"
         >
-          <span class="menu-icon" aria-hidden="true" v-html="getIconSvg(item.icon)"></span>
-          <span v-if="!sidebarCollapsed">{{ item.label }}</span>
+          <span class="workspace-primary-icon" aria-hidden="true" v-html="getIconSvg(item.icon)"></span>
+          <span>{{ item.label }}</span>
         </button>
       </nav>
 
-      <div class="sidebar-footer">
-        <div v-if="!sidebarCollapsed" class="sidebar-status">
-          <span class="status-dot"></span>
-          <p>已通过鉴权</p>
+      <div class="workspace-account-strip">
+        <div class="workspace-account-chip">
+          <span class="avatar" :title="session.nickname">{{ avatarText }}</span>
+          <div>
+            <strong>{{ session.nickname || session.username }}</strong>
+            <small>{{ session.companyCode || "TEST" }}</small>
+          </div>
         </div>
-        <button class="sidebar-exit-button" type="button" @click="logout">
-          {{ sidebarCollapsed ? "⎋" : "退出" }}
-        </button>
+        <button class="workspace-logout-button" type="button" @click="logout">退出</button>
       </div>
-    </aside>
+    </header>
 
-    <main class="workspace">
-      <section v-if="currentView === 'overview'" class="module-scene">
+    <main class="workspace-frame">
+      <section v-if="primaryWorkspace === 'overview'" class="module-scene dashboard-scene">
         <section class="overview-hero">
           <div class="overview-hero-copy">
-            <p class="eyebrow">Client Overview</p>
+            <p class="eyebrow">Workspace Overview</p>
             <h1>欢迎回来，{{ session.nickname || session.username }}。</h1>
-            <p>从这里查看当前平台状态、进入主流程，并继续你最近的业务动作。</p>
+            <p>这里汇总你今天最需要关注的业务状态、待办动作和高频入口，让你更快进入工作节奏。</p>
           </div>
           <div class="overview-account-card">
-            <span>当前账号</span>
+            <span>当前工作区</span>
             <strong>{{ session.companyCode || "TEST" }}</strong>
-            <small>已登录客户端工作台</small>
+            <small>已连接客户端业务工作台</small>
           </div>
         </section>
 
@@ -263,296 +261,53 @@
         </section>
       </section>
 
-      <section v-if="currentView === 'market'" class="panel-card market-panel">
-        <div class="panel-title">
-          <div>
-            <p class="eyebrow panel-eyebrow">{{ currentMeta.eyebrow }}</p>
-            <h2>货运商城</h2>
-            <p>把货运需求、报价接单和履约进度放进同一个工作台，用户端直接管理自己的发布和接单。</p>
-            <div class="inline-stat-list panel-stat-list" aria-label="Marketplace summary">
-              <span v-for="item in marketQuickStats" :key="item.label" class="inline-stat">
-                <strong>{{ item.value }}</strong>
-                <small>{{ item.label }}</small>
-              </span>
+      <section v-else-if="primaryWorkspace === 'data'" class="workspace-section-shell">
+        <aside class="section-sidebar" :class="{ collapsed: sidebarCollapsed }">
+          <div class="section-sidebar-head">
+            <div v-if="!sidebarCollapsed">
+              <p class="eyebrow">Data Workspace</p>
+              <h3>数据管理</h3>
+              <span>提单、模板与导出统一在一个工作区内。</span>
             </div>
+            <button class="section-sidebar-toggle" type="button" @click="sidebarCollapsed = !sidebarCollapsed">
+              {{ sidebarCollapsed ? "›" : "‹" }}
+            </button>
           </div>
-          <div class="bill-actions">
-            <button class="ghost-button" type="button" @click="resetMarketFilters">重置</button>
-            <button class="primary-button" type="button" @click="openMarketDemandEditor">发布货运需求</button>
-          </div>
-        </div>
+          <nav class="section-sidebar-nav" aria-label="Data navigation">
+            <button
+              v-for="item in dataNavItems"
+              :key="item.key"
+              class="section-sidebar-link"
+              :class="{ active: currentView === item.key }"
+              type="button"
+              @click="switchDataView(item.key)"
+            >
+              <span class="menu-icon" aria-hidden="true" v-html="getIconSvg(item.icon)"></span>
+              <span v-if="!sidebarCollapsed">{{ item.label }}</span>
+            </button>
+          </nav>
+        </aside>
 
-        <div class="market-shell">
-          <section class="market-list-pane">
-            <div class="market-tab-strip">
-              <button class="market-tab" :class="{ active: marketTab === 'browse' }" type="button" @click="switchMarketTab('browse')">市场大厅</button>
-              <button class="market-tab" :class="{ active: marketTab === 'mine' }" type="button" @click="switchMarketTab('mine')">我的发布</button>
-              <button class="market-tab" :class="{ active: marketTab === 'orders' }" type="button" @click="switchMarketTab('orders')">我的接单</button>
+        <div class="section-canvas">
+          <header class="workspace-header">
+            <div>
+              <p class="eyebrow">{{ currentMeta.eyebrow }}</p>
+              <h1>{{ currentMeta.title }}</h1>
+              <p>{{ currentMeta.description }}</p>
             </div>
-
-            <div v-if="marketTab !== 'orders'" class="bill-toolbar market-toolbar">
-              <label>
-                关键词
-                <input v-model.trim="marketQuery.keyword" placeholder="商品名称 / 起运港 / 目的港" @keyup.enter="searchMarketRecords" />
-              </label>
-              <label>
-                状态
-                <select v-model="marketQuery.status" @change="searchMarketRecords">
-                  <option value="">全部状态</option>
-                  <option value="PENDING_REVIEW">待审核</option>
-                  <option value="PUBLISHED">待报价</option>
-                  <option value="QUOTING">报价中</option>
-                  <option value="LOCKED">已锁单</option>
-                  <option value="FULFILLING">履约中</option>
-                  <option value="COMPLETED">已完结</option>
-                  <option value="CANCELLED">已取消</option>
-                </select>
-              </label>
-              <button class="secondary-button" type="button" @click="searchMarketRecords">查询</button>
-            </div>
-
-            <form v-if="marketDemandEditor.open" class="bill-editor market-demand-editor" novalidate @submit.prevent="submitMarketDemand">
-              <div class="editor-title">
-                <div>
-                  <strong>发布货运需求</strong>
-                </div>
-                <button class="ghost-button" type="button" @click="closeMarketDemandEditor">取消</button>
-              </div>
-              <div class="editor-grid">
-                <label>
-                  需求标题
-                  <input v-model.trim="marketDemandForm.title" placeholder="上海到鹿特丹整柜运输" />
-                </label>
-                <label>
-                  商品名称
-                  <input v-model.trim="marketDemandForm.goodsName" placeholder="机械设备" />
-                </label>
-                <label>
-                  起运港
-                  <input v-model.trim="marketDemandForm.departurePort" placeholder="SHANGHAI" />
-                </label>
-                <label>
-                  目的港
-                  <input v-model.trim="marketDemandForm.destinationPort" placeholder="ROTTERDAM" />
-                </label>
-                <label>
-                  期望船期
-                  <input v-model="marketDemandForm.expectedShippingDate" type="date" />
-                </label>
-                <label>
-                  数量
-                  <input v-model.number="marketDemandForm.quantity" type="number" min="0" placeholder="10" />
-                </label>
-                <label>
-                  单位
-                  <input v-model.trim="marketDemandForm.quantityUnit" placeholder="BOX / CBM / TON" />
-                </label>
-                <label>
-                  预算金额
-                  <input v-model.number="marketDemandForm.budgetAmount" type="number" min="0" placeholder="5000" />
-                </label>
-                <label>
-                  币种
-                  <input v-model.trim="marketDemandForm.currencyCode" placeholder="CNY" />
-                </label>
-                <label>
-                  联系人
-                  <input v-model.trim="marketDemandForm.contactName" placeholder="张三" />
-                </label>
-                <label>
-                  联系电话
-                  <input v-model.trim="marketDemandForm.contactPhone" placeholder="13800000000" />
-                </label>
-                <label class="editor-grid-wide">
-                  备注
-                  <textarea v-model.trim="marketDemandForm.remark" rows="3" placeholder="补充货物情况、报关要求或时效要求"></textarea>
-                </label>
-              </div>
-              <p v-if="marketDemandEditor.error" class="form-error">{{ marketDemandEditor.error }}</p>
-              <button class="primary-button full" type="submit" :disabled="marketSavingDemand">
-                {{ marketSavingDemand ? "正在提交" : "提交需求" }}
-              </button>
-            </form>
-
-            <div class="market-list">
-              <button
-                v-for="item in marketTab === 'orders' ? myAcceptedOrders : activeMarketDemandRecords"
-                :key="item.id"
-                class="market-list-card"
-                :class="{ active: marketTab === 'orders' ? selectedMarketOrderId === item.id : selectedMarketDemandId === item.id }"
-                type="button"
-                @click="selectMarketRecord(item)"
-              >
-                <template v-if="marketTab === 'orders'">
-                  <div class="market-list-head">
-                    <strong>{{ item.orderNo }}</strong>
-                    <span class="pill">{{ formatMarketOrderStatus(item.orderStatus) }}</span>
-                  </div>
-                  <p>需求 #{{ item.demandId }}</p>
-                  <small>成交报价 #{{ item.acceptedQuoteId }}</small>
-                </template>
-                <template v-else>
-                  <div class="market-list-head">
-                    <strong>{{ item.title }}</strong>
-                    <span class="pill">{{ formatMarketDemandStatus(item.demandStatus) }}</span>
-                  </div>
-                  <p>{{ item.goodsName }} · {{ item.departurePort }} → {{ item.destinationPort }}</p>
-                  <small>{{ item.currencyCode || "CNY" }} {{ item.budgetAmount || "-" }}</small>
-                </template>
-              </button>
-            </div>
-
-            <div v-if="!(marketTab === 'orders' ? myAcceptedOrders.length : activeMarketDemandRecords.length)" class="empty-state">
-              {{ marketTab === "browse" ? "暂无可浏览的货运需求。" : marketTab === "mine" ? "你还没有发布货运需求。" : "你还没有接单记录。" }}
-            </div>
-
-            <div class="pagination-bar" v-if="marketTab === 'browse' || marketTab === 'mine'">
-              <span>
-                {{ marketTab === "browse"
-                  ? `共 ${marketPage.total} 条，第 ${marketPage.current} / ${marketTotalPages} 页`
-                  : `共 ${myMarketPage.total} 条，第 ${myMarketPage.current} / ${myMarketTotalPages} 页` }}
-              </span>
-              <div>
-                <button class="ghost-button" type="button" @click="changeMarketPage(-1)" :disabled="marketTab === 'browse' ? marketPage.current <= 1 : myMarketPage.current <= 1">上一页</button>
-                <button class="ghost-button" type="button" @click="changeMarketPage(1)" :disabled="marketTab === 'browse' ? marketPage.current >= marketTotalPages : myMarketPage.current >= myMarketTotalPages">下一页</button>
-              </div>
-            </div>
-
-            <div class="pagination-bar" v-else>
-              <span>共 {{ orderPage.total }} 条，第 {{ orderPage.current }} / {{ orderTotalPages }} 页</span>
-              <div>
-                <button class="ghost-button" type="button" @click="changeOrderPage(-1)" :disabled="orderPage.current <= 1">上一页</button>
-                <button class="ghost-button" type="button" @click="changeOrderPage(1)" :disabled="orderPage.current >= orderTotalPages">下一页</button>
-              </div>
-            </div>
-          </section>
-
-          <section class="panel-card market-detail-pane">
-            <template v-if="marketTab === 'orders'">
-              <div v-if="selectedMarketOrder" class="market-detail-stack">
-                <div class="market-detail-head">
-                  <div>
-                    <p class="eyebrow">Order Detail</p>
-                    <h3>{{ selectedMarketOrder.orderNo }}</h3>
-                  </div>
-                  <span class="pill">{{ formatMarketOrderStatus(selectedMarketOrder.orderStatus) }}</span>
-                </div>
-                <div class="detail-grid market-detail-grid">
-                  <div class="detail-field"><span>需求 ID</span><strong>{{ selectedMarketOrder.demandId }}</strong></div>
-                  <div class="detail-field"><span>成交报价</span><strong>#{{ selectedMarketOrder.acceptedQuoteId }}</strong></div>
-                  <div class="detail-field"><span>订单状态</span><strong>{{ formatMarketOrderStatus(selectedMarketOrder.orderStatus) }}</strong></div>
-                </div>
-                <div class="market-action-row">
-                  <button class="primary-button" type="button" :disabled="selectedMarketOrder.orderStatus !== 'CREATED' || marketProcessingOrder" @click="startSelectedOrder(selectedMarketOrder.id)">
-                    {{ marketProcessingOrder && selectedMarketOrder.orderStatus === "CREATED" ? "正在开工" : "开始履约" }}
-                  </button>
-                </div>
-              </div>
-              <div v-else class="market-detail-empty">
-                <h3>选择一条接单记录</h3>
-                <p>这里会展示履约状态，并提供“开始履约”操作。</p>
-              </div>
-            </template>
-
-            <template v-else>
-              <div v-if="selectedMarketDemandDetail" class="market-detail-stack">
-                <div class="market-detail-head">
-                  <div>
-                    <p class="eyebrow">Demand Detail</p>
-                    <h3>{{ selectedMarketDemandDetail.title }}</h3>
-                    <p>{{ selectedMarketDemandDetail.goodsName }} · {{ selectedMarketDemandDetail.departurePort }} → {{ selectedMarketDemandDetail.destinationPort }}</p>
-                  </div>
-                  <div class="market-status-stack">
-                    <span class="pill">{{ formatMarketDemandStatus(selectedMarketDemandDetail.demandStatus) }}</span>
-                    <span class="pill muted">{{ formatMarketAuditStatus(selectedMarketDemandDetail.auditStatus) }}</span>
-                  </div>
-                </div>
-
-                <div class="detail-grid market-detail-grid">
-                  <div class="detail-field"><span>预算</span><strong>{{ selectedMarketDemandDetail.currencyCode || "CNY" }} {{ selectedMarketDemandDetail.budgetAmount || "-" }}</strong></div>
-                  <div class="detail-field"><span>数量</span><strong>{{ selectedMarketDemandDetail.quantity || "-" }} {{ selectedMarketDemandDetail.quantityUnit || "" }}</strong></div>
-                  <div class="detail-field"><span>期望船期</span><strong>{{ selectedMarketDemandDetail.expectedShippingDate || "-" }}</strong></div>
-                  <div class="detail-field"><span>联系人</span><strong>{{ selectedMarketDemandDetail.contactName || "-" }}</strong></div>
-                  <div class="detail-field"><span>联系电话</span><strong>{{ selectedMarketDemandDetail.contactPhone || "-" }}</strong></div>
-                  <div class="detail-field detail-field-wide"><span>备注</span><strong>{{ selectedMarketDemandDetail.remark || "暂无备注" }}</strong></div>
-                </div>
-
-                <div v-if="marketTab === 'mine'" class="market-action-row">
-                  <button class="danger-button" type="button" :disabled="!canCancelSelectedDemand" @click="cancelSelectedDemand">取消需求</button>
-                  <button class="primary-button" type="button" :disabled="!canCompleteSelectedDemandOrder || marketProcessingOrder" @click="completeSelectedDemandOrder">
-                    {{ marketProcessingOrder && canCompleteSelectedDemandOrder ? "正在完结" : "确认完结" }}
-                  </button>
-                </div>
-
-                <section v-if="marketTab === 'browse'" class="market-quote-form">
-                  <div class="panel-title compact">
-                    <h3>提交报价</h3>
-                    <p>作为代理方提交报价，后续可在“我的接单”中查看状态。</p>
-                  </div>
-                  <div class="editor-grid">
-                    <label>
-                      报价金额
-                      <input v-model.number="marketQuoteForm.priceAmount" type="number" min="0" placeholder="4800" />
-                    </label>
-                    <label>
-                      币种
-                      <input v-model.trim="marketQuoteForm.currencyCode" placeholder="CNY" />
-                    </label>
-                    <label>
-                      预计天数
-                      <input v-model.number="marketQuoteForm.estimatedDays" type="number" min="0" placeholder="12" />
-                    </label>
-                    <label class="editor-grid-wide">
-                      服务说明
-                      <textarea v-model.trim="marketQuoteForm.serviceNote" rows="3" placeholder="可提供拖车、报关与提箱服务"></textarea>
-                    </label>
-                  </div>
-                  <button class="primary-button" type="button" :disabled="marketSubmittingQuote" @click="submitSelectedDemandQuote">
-                    {{ marketSubmittingQuote ? "正在报价" : "提交报价" }}
-                  </button>
-                </section>
-
-                <section class="market-quote-board">
-                  <div class="panel-title compact">
-                    <h3>报价列表</h3>
-                    <p>{{ selectedMarketQuotes.length ? `当前共 ${selectedMarketQuotes.length} 条报价。` : "当前还没有报价记录。" }}</p>
-                  </div>
-                  <div class="market-quote-list">
-                    <article v-for="quote in selectedMarketQuotes" :key="quote.id" class="market-quote-card">
-                      <div class="market-list-head">
-                        <strong>{{ quote.currencyCode || "CNY" }} {{ quote.priceAmount || "-" }}</strong>
-                        <span class="pill">{{ formatMarketQuoteStatus(quote.quoteStatus) }}</span>
-                      </div>
-                      <p>{{ quote.serviceNote || "暂无服务说明" }}</p>
-                      <small>预计 {{ quote.estimatedDays || "-" }} 天</small>
-                      <div v-if="marketTab === 'mine'" class="market-action-row compact">
-                        <button class="secondary-button" type="button" :disabled="quote.quoteStatus !== 'SUBMITTED'" @click="acceptSelectedQuote(quote.id)">接受报价</button>
-                      </div>
-                    </article>
-                  </div>
-                </section>
-              </div>
-              <div v-else class="market-detail-empty">
-                <h3>选择一条货运需求</h3>
-                <p>这里会展示需求详情、报价列表，以及你能执行的发布或接单动作。</p>
-              </div>
-            </template>
-          </section>
-        </div>
-      </section>
-
-      <section v-if="currentView === 'bills'" class="panel-card">
-        <div class="panel-title">
-          <div>
-            <p class="eyebrow panel-eyebrow">{{ currentMeta.eyebrow }}</p>
-            <h2>已存提单数据</h2>
-            <p>支持分页、搜索、新增、编辑和删除。点击任一提单行展开完整字段预览。</p>
-            <div class="inline-stat-list panel-stat-list" aria-label="Workspace summary">
+            <div class="workspace-header-stats">
               <span v-for="item in clientQuickStats" :key="item.label" class="inline-stat">
                 <strong>{{ item.value }}</strong>
                 <small>{{ item.label }}</small>
               </span>
             </div>
+          </header>
+
+          <section v-if="currentView === 'bills'" class="panel-card">
+        <div class="panel-title">
+          <div>
+            <h2>已存提单数据</h2>
+            <p>支持分页、搜索、新增、编辑和删除。点击任一提单行展开完整字段预览。</p>
           </div>
           <div class="bill-actions">
             <button class="ghost-button" type="button" @click="resetBillFilters">重置</button>
@@ -734,20 +489,9 @@
             </footer>
           </article>
         </section>
-      </section>
+          </section>
 
-      <section v-if="currentView === 'extract'" class="module-scene">
-        <div class="module-intro module-intro-compact">
-          <p class="eyebrow">{{ currentMeta.eyebrow }}</p>
-          <h2>{{ currentMeta.title }}</h2>
-          <p v-if="currentMeta.description">{{ currentMeta.description }}</p>
-          <div class="inline-stat-list" aria-label="Workspace summary">
-            <span v-for="item in clientQuickStats" :key="item.label" class="inline-stat">
-              <strong>{{ item.value }}</strong>
-              <small>{{ item.label }}</small>
-            </span>
-          </div>
-        </div>
+          <section v-if="currentView === 'extract'" class="module-scene">
         <div class="work-grid">
         <article class="panel-card">
           <div class="panel-title compact">
@@ -793,20 +537,13 @@
           <p v-else>上传文件后，这里会预览模板字段、置信度和可编辑映射。</p>
         </article>
         </div>
-      </section>
+          </section>
 
-      <section v-if="currentView === 'templates'" class="panel-card">
+          <section v-if="currentView === 'templates'" class="panel-card">
         <div class="panel-title">
           <div>
-            <p class="eyebrow panel-eyebrow">{{ currentMeta.eyebrow }}</p>
             <h2>模板管理</h2>
             <p>管理已经保存的提单模板，查看存储位置、版本、字段数量和启用状态。</p>
-            <div class="inline-stat-list panel-stat-list" aria-label="Workspace summary">
-              <span v-for="item in clientQuickStats" :key="item.label" class="inline-stat">
-                <strong>{{ item.value }}</strong>
-                <small>{{ item.label }}</small>
-              </span>
-            </div>
           </div>
           <div class="bill-actions">
             <button class="ghost-button" type="button" @click="resetTemplateFilters">重置</button>
@@ -885,6 +622,392 @@
             <button class="ghost-button" type="button" :disabled="templatePage.current >= templateTotalPages" @click="changeTemplatePage(1)">下一页</button>
           </div>
         </div>
+          </section>
+
+          <section v-if="currentView === 'export'" class="module-scene">
+        <div class="work-grid">
+        <article class="panel-card">
+          <div class="panel-title compact">
+            <h2>按模板导出</h2>
+            <p>选择模板并上传目标文件，生成适配目标格式的导出任务。</p>
+          </div>
+          <label>
+            选择模板
+            <select v-model="exportForm.templateId" :disabled="!templateOptions.length">
+              <option v-if="!templateOptions.length" value="">暂无可导出的 DOCX 模板</option>
+              <option v-for="template in templateOptions" :key="template.id" :value="template.id">
+                {{ template.name }}
+              </option>
+            </select>
+          </label>
+          <label>
+            导出格式
+            <select v-model="exportForm.outputFormat">
+              <option value="DOCX">DOCX 标准文档</option>
+              <option value="PDF">PDF 文档</option>
+            </select>
+          </label>
+          <label class="drop-zone slim" :class="{ active: exportFile }">
+            <input type="file" accept=".doc,.docx,.xlsx,.xls,.pdf" @change="handleExportFile" />
+            <span class="upload-symbol">＋</span>
+            <strong>{{ exportFile ? exportFile.name : "上传目标文件" }}</strong>
+            <p>用于承载模板导出的目标文档。</p>
+          </label>
+          <button class="primary-button full" type="button" :disabled="exportingTemplate" @click="createExportJob">
+            {{ exportingTemplate ? "正在抽取并生成" : "创建导出任务" }}
+          </button>
+        </article>
+
+        <article class="panel-card">
+          <h2>导出队列</h2>
+          <div class="job-list">
+            <div v-for="job in exportJobs" :key="job.id" class="job-card">
+              <div class="job-main">
+                <span>{{ job.template }}</span>
+                <strong>{{ job.file }}</strong>
+                <small>{{ job.status }}</small>
+              </div>
+              <div v-if="job.downloadUrl" class="job-actions">
+                <button class="secondary-button" type="button" @click="openExportDialog(job)">查看并保存</button>
+              </div>
+              <details v-if="job.fields?.length" class="export-field-preview">
+                <summary>查看 Dify 提取字段 {{ job.fields.length }}</summary>
+                <p v-for="field in job.fields" :key="field.key">
+                  <b>{{ field.key }}</b>
+                  <span>{{ field.value }}</span>
+                </p>
+              </details>
+              <div v-if="job.missing?.length" class="form-error">
+                缺失字段：{{ job.missing.join("、") }}
+              </div>
+            </div>
+          </div>
+        </article>
+        </div>
+          </section>
+        </div>
+      </section>
+
+      <section v-else-if="primaryWorkspace === 'market'" class="workspace-section-shell market-workspace">
+        <aside class="section-sidebar" :class="{ collapsed: sidebarCollapsed }">
+          <div class="section-sidebar-head">
+            <div v-if="!sidebarCollapsed">
+              <p class="eyebrow">Marketplace</p>
+              <h3>货运商城</h3>
+              <span>发布需求、管理报价并推进履约。</span>
+            </div>
+            <button class="section-sidebar-toggle" type="button" @click="sidebarCollapsed = !sidebarCollapsed">
+              {{ sidebarCollapsed ? "›" : "‹" }}
+            </button>
+          </div>
+          <nav class="section-sidebar-nav" aria-label="Market navigation">
+            <button
+              v-for="item in marketNavItems"
+              :key="item.key"
+              class="section-sidebar-link"
+              :class="{ active: activeMarketSection === item.key }"
+              type="button"
+              @click="switchMarketSection(item.key)"
+            >
+              <span class="menu-icon" aria-hidden="true" v-html="getIconSvg(item.icon)"></span>
+              <span v-if="!sidebarCollapsed">{{ item.label }}</span>
+            </button>
+          </nav>
+          <button v-if="!sidebarCollapsed" class="primary-button full" type="button" @click="openMarketDemandEditor">发布货运需求</button>
+        </aside>
+
+        <div class="section-canvas">
+          <header class="workspace-header">
+            <div>
+              <p class="eyebrow">{{ currentMeta.eyebrow }}</p>
+              <h1>货运商城</h1>
+              <p>浏览平台需求、管理自己的发布，并把接单履约统一放在一个更轻量的市场工作区里。</p>
+            </div>
+            <div class="workspace-header-stats">
+              <span v-for="item in marketSummaryCards" :key="item.label" class="inline-stat">
+                <strong>{{ item.value }}</strong>
+                <small>{{ item.label }}</small>
+              </span>
+            </div>
+          </header>
+
+          <section class="panel-card market-stage-panel">
+            <div v-if="marketTab !== 'orders'" class="bill-toolbar market-toolbar">
+              <label>
+                关键词
+                <input v-model.trim="marketQuery.keyword" placeholder="商品名称 / 起运港 / 目的港" @keyup.enter="searchMarketRecords" />
+              </label>
+              <label>
+                状态
+                <select v-model="marketQuery.status" @change="searchMarketRecords">
+                  <option value="">全部状态</option>
+                  <option value="PENDING_REVIEW">待审核</option>
+                  <option value="PUBLISHED">待报价</option>
+                  <option value="QUOTING">报价中</option>
+                  <option value="LOCKED">已锁单</option>
+                  <option value="FULFILLING">履约中</option>
+                  <option value="COMPLETED">已完结</option>
+                  <option value="CANCELLED">已取消</option>
+                </select>
+              </label>
+              <button class="secondary-button" type="button" @click="searchMarketRecords">查询</button>
+              <button class="ghost-button" type="button" @click="resetMarketFilters">重置</button>
+            </div>
+
+            <form v-if="marketDemandEditor.open" class="bill-editor market-demand-editor" novalidate @submit.prevent="submitMarketDemand">
+              <div class="editor-title">
+                <div>
+                  <strong>发布货运需求</strong>
+                </div>
+                <button class="ghost-button" type="button" @click="closeMarketDemandEditor">取消</button>
+              </div>
+              <div class="editor-grid">
+                <label>
+                  需求标题
+                  <input v-model.trim="marketDemandForm.title" placeholder="上海到鹿特丹整柜运输" />
+                </label>
+                <label>
+                  商品名称
+                  <input v-model.trim="marketDemandForm.goodsName" placeholder="机械设备" />
+                </label>
+                <label>
+                  起运港
+                  <input v-model.trim="marketDemandForm.departurePort" placeholder="SHANGHAI" />
+                </label>
+                <label>
+                  目的港
+                  <input v-model.trim="marketDemandForm.destinationPort" placeholder="ROTTERDAM" />
+                </label>
+                <label>
+                  期望船期
+                  <input v-model="marketDemandForm.expectedShippingDate" type="date" />
+                </label>
+                <label>
+                  数量
+                  <input v-model.number="marketDemandForm.quantity" type="number" min="0" placeholder="10" />
+                </label>
+                <label>
+                  单位
+                  <input v-model.trim="marketDemandForm.quantityUnit" placeholder="BOX / CBM / TON" />
+                </label>
+                <label>
+                  预算金额
+                  <input v-model.number="marketDemandForm.budgetAmount" type="number" min="0" placeholder="5000" />
+                </label>
+                <label>
+                  币种
+                  <input v-model.trim="marketDemandForm.currencyCode" placeholder="CNY" />
+                </label>
+                <label>
+                  联系人
+                  <input v-model.trim="marketDemandForm.contactName" placeholder="张三" />
+                </label>
+                <label>
+                  联系电话
+                  <input v-model.trim="marketDemandForm.contactPhone" placeholder="13800000000" />
+                </label>
+                <label class="editor-grid-wide">
+                  备注
+                  <textarea v-model.trim="marketDemandForm.remark" rows="3" placeholder="补充货物情况、报关要求或时效要求"></textarea>
+                </label>
+              </div>
+              <p v-if="marketDemandEditor.error" class="form-error">{{ marketDemandEditor.error }}</p>
+              <button class="primary-button full" type="submit" :disabled="marketSavingDemand">
+                {{ marketSavingDemand ? "正在提交" : "提交需求" }}
+              </button>
+            </form>
+
+            <div class="market-card-grid">
+              <button
+                v-for="item in marketCardRecords"
+                :key="item.id"
+                class="market-grid-card"
+                :class="{ active: marketTab === 'orders' ? selectedMarketOrderId === item.id : selectedMarketDemandId === item.id }"
+                type="button"
+                @click="selectMarketRecord(item)"
+              >
+                <template v-if="marketTab === 'orders'">
+                  <div class="market-card-topline">
+                    <span class="market-card-kicker">Order</span>
+                    <span class="pill">{{ formatMarketOrderStatus(item.orderStatus) }}</span>
+                  </div>
+                  <strong>{{ item.orderNo }}</strong>
+                  <p>需求 #{{ item.demandId }}</p>
+                  <div class="market-card-meta">
+                    <span>成交报价 #{{ item.acceptedQuoteId }}</span>
+                    <span>点击查看履约详情</span>
+                  </div>
+                </template>
+                <template v-else>
+                  <div class="market-card-topline">
+                    <span class="market-card-kicker">{{ marketTab === "browse" ? "Market Hall" : "My Post" }}</span>
+                    <span class="pill">{{ formatMarketDemandStatus(item.demandStatus) }}</span>
+                  </div>
+                  <strong>{{ item.title }}</strong>
+                  <p>{{ item.goodsName }}</p>
+                  <div class="market-card-route">{{ item.departurePort }} → {{ item.destinationPort }}</div>
+                  <div class="market-card-meta">
+                    <span>{{ item.currencyCode || "CNY" }} {{ item.budgetAmount || "-" }}</span>
+                    <span>{{ item.expectedShippingDate || "待确认船期" }}</span>
+                  </div>
+                </template>
+              </button>
+            </div>
+
+            <div v-if="!marketCardRecords.length" class="empty-state">
+              {{ marketTab === "browse" ? "暂无可浏览的货运需求。" : marketTab === "mine" ? "你还没有发布货运需求。" : "你还没有接单记录。" }}
+            </div>
+
+            <div class="pagination-bar" v-if="marketTab === 'browse' || marketTab === 'mine'">
+              <span>
+                {{ marketTab === "browse"
+                  ? `共 ${marketPage.total} 条，第 ${marketPage.current} / ${marketTotalPages} 页`
+                  : `共 ${myMarketPage.total} 条，第 ${myMarketPage.current} / ${myMarketTotalPages} 页` }}
+              </span>
+              <div>
+                <button class="ghost-button" type="button" @click="changeMarketPage(-1)" :disabled="marketTab === 'browse' ? marketPage.current <= 1 : myMarketPage.current <= 1">上一页</button>
+                <button class="ghost-button" type="button" @click="changeMarketPage(1)" :disabled="marketTab === 'browse' ? marketPage.current >= marketTotalPages : myMarketPage.current >= myMarketTotalPages">下一页</button>
+              </div>
+            </div>
+
+            <div class="pagination-bar" v-else>
+              <span>共 {{ orderPage.total }} 条，第 {{ orderPage.current }} / {{ orderTotalPages }} 页</span>
+              <div>
+                <button class="ghost-button" type="button" @click="changeOrderPage(-1)" :disabled="orderPage.current <= 1">上一页</button>
+                <button class="ghost-button" type="button" @click="changeOrderPage(1)" :disabled="orderPage.current >= orderTotalPages">下一页</button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section v-else class="module-scene news-scene">
+        <header class="workspace-header">
+          <div>
+            <p class="eyebrow">{{ currentMeta.eyebrow }}</p>
+            <h1>{{ currentMeta.title }}</h1>
+            <p>{{ currentMeta.description }}</p>
+          </div>
+        </header>
+        <section class="news-placeholder-grid">
+          <article v-for="item in newsHighlights" :key="item.title" class="panel-card news-placeholder-card">
+            <span class="news-tag">{{ item.tag }}</span>
+            <h2>{{ item.title }}</h2>
+            <p>{{ item.desc }}</p>
+          </article>
+        </section>
+      </section>
+
+      <section
+        v-if="marketDetailDialog.open && (marketDetailDialog.mode === 'order' ? selectedMarketOrder : selectedMarketDemandDetail)"
+        class="bill-detail-dialog-backdrop"
+        @click.self="closeMarketDetailDialog"
+      >
+        <article class="bill-detail-dialog market-detail-dialog">
+          <header class="bill-detail-dialog-head">
+            <div>
+              <p class="eyebrow">{{ marketDialogTitle }}</p>
+              <h2>{{ marketDetailDialog.mode === "order" ? selectedMarketOrder?.orderNo : selectedMarketDemandDetail?.title }}</h2>
+              <span class="pill">
+                {{ marketDetailDialog.mode === "order"
+                  ? formatMarketOrderStatus(selectedMarketOrder?.orderStatus)
+                  : formatMarketDemandStatus(selectedMarketDemandDetail?.demandStatus) }}
+              </span>
+            </div>
+            <button class="ghost-button" type="button" @click="closeMarketDetailDialog">关闭</button>
+          </header>
+
+          <template v-if="marketDetailDialog.mode === 'order' && selectedMarketOrder">
+            <div class="detail-grid market-detail-grid">
+              <div class="detail-field"><span>需求 ID</span><strong>{{ selectedMarketOrder.demandId }}</strong></div>
+              <div class="detail-field"><span>成交报价</span><strong>#{{ selectedMarketOrder.acceptedQuoteId }}</strong></div>
+              <div class="detail-field"><span>订单状态</span><strong>{{ formatMarketOrderStatus(selectedMarketOrder.orderStatus) }}</strong></div>
+            </div>
+            <footer class="bill-detail-dialog-actions">
+              <button class="primary-button" type="button" :disabled="selectedMarketOrder.orderStatus !== 'CREATED' || marketProcessingOrder" @click="startSelectedOrder(selectedMarketOrder.id)">
+                {{ marketProcessingOrder && selectedMarketOrder.orderStatus === "CREATED" ? "正在开工" : "开始履约" }}
+              </button>
+              <button class="ghost-button" type="button" @click="closeMarketDetailDialog">关闭</button>
+            </footer>
+          </template>
+
+          <template v-else-if="selectedMarketDemandDetail">
+            <div class="market-detail-stack">
+              <div class="market-detail-head">
+                <div>
+                  <p>{{ selectedMarketDemandDetail.goodsName }} · {{ selectedMarketDemandDetail.departurePort }} → {{ selectedMarketDemandDetail.destinationPort }}</p>
+                </div>
+                <div class="market-status-stack">
+                  <span class="pill muted">{{ formatMarketAuditStatus(selectedMarketDemandDetail.auditStatus) }}</span>
+                </div>
+              </div>
+
+              <div class="detail-grid market-detail-grid">
+                <div class="detail-field"><span>预算</span><strong>{{ selectedMarketDemandDetail.currencyCode || "CNY" }} {{ selectedMarketDemandDetail.budgetAmount || "-" }}</strong></div>
+                <div class="detail-field"><span>数量</span><strong>{{ selectedMarketDemandDetail.quantity || "-" }} {{ selectedMarketDemandDetail.quantityUnit || "" }}</strong></div>
+                <div class="detail-field"><span>期望船期</span><strong>{{ selectedMarketDemandDetail.expectedShippingDate || "-" }}</strong></div>
+                <div class="detail-field"><span>联系人</span><strong>{{ selectedMarketDemandDetail.contactName || "-" }}</strong></div>
+                <div class="detail-field"><span>联系电话</span><strong>{{ selectedMarketDemandDetail.contactPhone || "-" }}</strong></div>
+                <div class="detail-field detail-field-wide"><span>备注</span><strong>{{ selectedMarketDemandDetail.remark || "暂无备注" }}</strong></div>
+              </div>
+
+              <div v-if="marketTab === 'mine'" class="market-action-row">
+                <button class="danger-button" type="button" :disabled="!canCancelSelectedDemand" @click="cancelSelectedDemand">取消需求</button>
+                <button class="primary-button" type="button" :disabled="!canCompleteSelectedDemandOrder || marketProcessingOrder" @click="completeSelectedDemandOrder">
+                  {{ marketProcessingOrder && canCompleteSelectedDemandOrder ? "正在完结" : "确认完结" }}
+                </button>
+              </div>
+
+              <section v-if="marketTab === 'browse'" class="market-quote-form">
+                <div class="panel-title compact">
+                  <h3>提交报价</h3>
+                  <p>作为代理方提交报价，后续可在“我的接单”中查看状态。</p>
+                </div>
+                <div class="editor-grid">
+                  <label>
+                    报价金额
+                    <input v-model.number="marketQuoteForm.priceAmount" type="number" min="0" placeholder="4800" />
+                  </label>
+                  <label>
+                    币种
+                    <input v-model.trim="marketQuoteForm.currencyCode" placeholder="CNY" />
+                  </label>
+                  <label>
+                    预计天数
+                    <input v-model.number="marketQuoteForm.estimatedDays" type="number" min="0" placeholder="12" />
+                  </label>
+                  <label class="editor-grid-wide">
+                    服务说明
+                    <textarea v-model.trim="marketQuoteForm.serviceNote" rows="3" placeholder="可提供拖车、报关与提箱服务"></textarea>
+                  </label>
+                </div>
+                <button class="primary-button" type="button" :disabled="marketSubmittingQuote" @click="submitSelectedDemandQuote">
+                  {{ marketSubmittingQuote ? "正在报价" : "提交报价" }}
+                </button>
+              </section>
+
+              <section class="market-quote-board">
+                <div class="panel-title compact">
+                  <h3>报价列表</h3>
+                  <p>{{ selectedMarketQuotes.length ? `当前共 ${selectedMarketQuotes.length} 条报价。` : "当前还没有报价记录。" }}</p>
+                </div>
+                <div class="market-quote-list">
+                  <article v-for="quote in selectedMarketQuotes" :key="quote.id" class="market-quote-card">
+                    <div class="market-list-head">
+                      <strong>{{ quote.currencyCode || "CNY" }} {{ quote.priceAmount || "-" }}</strong>
+                      <span class="pill">{{ formatMarketQuoteStatus(quote.quoteStatus) }}</span>
+                    </div>
+                    <p>{{ quote.serviceNote || "暂无服务说明" }}</p>
+                    <small>预计 {{ quote.estimatedDays || "-" }} 天</small>
+                    <div v-if="marketTab === 'mine'" class="market-action-row compact">
+                      <button class="secondary-button" type="button" :disabled="quote.quoteStatus !== 'SUBMITTED'" @click="acceptSelectedQuote(quote.id)">接受报价</button>
+                    </div>
+                  </article>
+                </div>
+              </section>
+            </div>
+          </template>
+        </article>
       </section>
 
       <section v-if="extractDialogOpen && selectedExtractResult" class="extract-dialog-backdrop">
@@ -1019,79 +1142,6 @@
           </div>
         </article>
       </section>
-      <section v-if="currentView === 'export'" class="module-scene">
-        <div class="module-intro module-intro-compact">
-          <p class="eyebrow">{{ currentMeta.eyebrow }}</p>
-          <h2>{{ currentMeta.title }}</h2>
-          <p v-if="currentMeta.description">{{ currentMeta.description }}</p>
-          <div class="inline-stat-list" aria-label="Workspace summary">
-            <span v-for="item in clientQuickStats" :key="item.label" class="inline-stat">
-              <strong>{{ item.value }}</strong>
-              <small>{{ item.label }}</small>
-            </span>
-          </div>
-        </div>
-        <div class="work-grid">
-        <article class="panel-card">
-          <div class="panel-title compact">
-            <h2>按模板导出</h2>
-            <p>选择模板并上传目标文件，生成适配目标格式的导出任务。</p>
-          </div>
-          <label>
-            选择模板
-            <select v-model="exportForm.templateId" :disabled="!templateOptions.length">
-              <option v-if="!templateOptions.length" value="">暂无可导出的 DOCX 模板</option>
-              <option v-for="template in templateOptions" :key="template.id" :value="template.id">
-                {{ template.name }}
-              </option>
-            </select>
-          </label>
-          <label>
-            导出格式
-            <select v-model="exportForm.outputFormat">
-              <option value="DOCX">DOCX 标准文档</option>
-              <option value="PDF">PDF 文档</option>
-            </select>
-          </label>
-          <label class="drop-zone slim" :class="{ active: exportFile }">
-            <input type="file" accept=".doc,.docx,.xlsx,.xls,.pdf" @change="handleExportFile" />
-            <span class="upload-symbol">＋</span>
-            <strong>{{ exportFile ? exportFile.name : "上传目标文件" }}</strong>
-            <p>用于承载模板导出的目标文档。</p>
-          </label>
-          <button class="primary-button full" type="button" :disabled="exportingTemplate" @click="createExportJob">
-            {{ exportingTemplate ? "正在抽取并生成" : "创建导出任务" }}
-          </button>
-        </article>
-
-        <article class="panel-card">
-          <h2>导出队列</h2>
-          <div class="job-list">
-            <div v-for="job in exportJobs" :key="job.id" class="job-card">
-              <div class="job-main">
-                <span>{{ job.template }}</span>
-                <strong>{{ job.file }}</strong>
-                <small>{{ job.status }}</small>
-              </div>
-              <div v-if="job.downloadUrl" class="job-actions">
-                <button class="secondary-button" type="button" @click="openExportDialog(job)">查看并保存</button>
-              </div>
-              <details v-if="job.fields?.length" class="export-field-preview">
-                <summary>查看 Dify 提取字段 {{ job.fields.length }}</summary>
-                <p v-for="field in job.fields" :key="field.key">
-                  <b>{{ field.key }}</b>
-                  <span>{{ field.value }}</span>
-                </p>
-              </details>
-              <div v-if="job.missing?.length" class="form-error">
-                缺失字段：{{ job.missing.join("、") }}
-              </div>
-            </div>
-          </div>
-        </article>
-        </div>
-      </section>
-
       <section v-if="exportDialogOpen && selectedExportJob" class="extract-dialog-backdrop">
         <article class="extract-dialog">
           <header class="extract-dialog-head">
@@ -1261,6 +1311,10 @@ const session = reactive({
 const sidebarCollapsed = ref(false);
 const currentView = ref("overview");
 const marketTab = ref("browse");
+const marketDetailDialog = reactive({
+  open: false,
+  mode: "demand",
+});
 const selectedBillIds = ref([]);
 const extractFile = ref(null);
 const exportFile = ref(null);
@@ -1436,15 +1490,28 @@ const iconMap = Object.freeze({
     '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M4.226 20.925A2 2 0 0 0 6 22h12a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v3.127"/><path d="M14 2v5a1 1 0 0 0 1 1h5M5 11l-3 3m3 3l-3-3h10"/></g></svg>',
   market:
     '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M3 7.5h18"/><path d="M5 7.5V18a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V7.5"/><path d="M8 11h8"/><path d="M9 15h3"/><path d="M6 4h12l1 3.5H5z"/></g></svg>',
+  news:
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v11A1.5 1.5 0 0 1 18.5 18H7"/><path d="M7 18a3 3 0 0 1-3-3V7"/><path d="M8.5 8.5h7"/><path d="M8.5 12h7"/><path d="M8.5 15.5H13"/></g></svg>',
 });
 
-const navItems = [
-  { key: "overview", label: "用户总览", icon: "dashboard" },
-  { key: "market", label: "货运商城", icon: "market" },
-  { key: "bills", label: "已存提单数据", icon: "files" },
-  { key: "extract", label: "提单模版提取", icon: "searchFile" },
-  { key: "templates", label: "模板管理", icon: "library" },
-  { key: "export", label: "按模版导出", icon: "output" },
+const primaryNavItems = [
+  { key: "overview", label: "总览", icon: "dashboard" },
+  { key: "data", label: "数据管理", icon: "files" },
+  { key: "market", label: "商城", icon: "market" },
+  { key: "news", label: "新闻", icon: "news" },
+];
+
+const dataNavItems = [
+  { key: "bills", label: "提单管理", icon: "files" },
+  { key: "extract", label: "模板提取", icon: "searchFile" },
+  { key: "templates", label: "模板中心", icon: "library" },
+  { key: "export", label: "导出任务", icon: "output" },
+];
+
+const marketNavItems = [
+  { key: "lobby", label: "市场大厅", icon: "market" },
+  { key: "my-posts", label: "我的发布", icon: "files" },
+  { key: "my-orders", label: "我的接单", icon: "output" },
 ];
 
 const landingCapabilities = [
@@ -1492,6 +1559,11 @@ const metaMap = {
     eyebrow: "Template Export",
     title: "按模版导出",
     description: "上传目标文件，按照选定模板生成导出任务。",
+  },
+  news: {
+    eyebrow: "News Center",
+    title: "新闻中心",
+    description: "预留行业动态、平台公告和内容服务入口。",
   },
 };
 
@@ -1561,6 +1633,38 @@ const currentExtractFileKey = computed(() => (extractFile.value ? buildFileKey(e
 const isCurrentExtractFileDone = computed(() => Boolean(currentExtractFileKey.value && extractedFileKeys.value.has(currentExtractFileKey.value)));
 const selectedExtractResult = computed(() => extractedTemplates.value.find((item) => item.id === selectedExtractId.value));
 const selectedExportJob = computed(() => exportJobs.value.find((item) => item.id === selectedExportJobId.value));
+const primaryWorkspace = computed(() => {
+  if (["bills", "extract", "templates", "export"].includes(currentView.value)) {
+    return "data";
+  }
+  if (currentView.value === "market") {
+    return "market";
+  }
+  if (currentView.value === "news") {
+    return "news";
+  }
+  return "overview";
+});
+const activeMarketSection = computed(() => {
+  const map = {
+    browse: "lobby",
+    mine: "my-posts",
+    orders: "my-orders",
+  };
+  return map[marketTab.value] || "lobby";
+});
+const marketSummaryCards = computed(() => [
+  { label: "大厅需求", value: marketPage.total || marketDemands.value.length, hint: "可浏览可报价" },
+  { label: "我的发布", value: myMarketPage.total || myMarketDemands.value.length, hint: "跟进报价与履约" },
+  { label: "我的接单", value: orderPage.total || myAcceptedOrders.value.length, hint: "履约中的合作单" },
+]);
+const marketCardRecords = computed(() => marketTab.value === "orders" ? myAcceptedOrders.value : activeMarketDemandRecords.value);
+const marketDialogTitle = computed(() => marketDetailDialog.mode === "order" ? "接单详情" : "需求详情");
+const newsHighlights = [
+  { title: "行业快讯位", desc: "后续可接入航运市场指数、热门航线动态与订舱提醒。", tag: "内容预留" },
+  { title: "平台公告位", desc: "用于发布模板更新、导出能力升级和商城规则调整。", tag: "系统通知" },
+  { title: "市场情报位", desc: "汇总平台高频货类、报价趋势和近期成交热度。", tag: "运营分析" },
+];
 const extractButtonText = computed(() => {
   if (extractingTemplate.value) {
     return "正在提取，请稍候";
@@ -1603,20 +1707,20 @@ function closeAuthDialog() {
 
 function handleOverviewShortcut(action) {
   if (action === "create-bill") {
-    switchView("bills");
+    switchDataView("bills");
     startCreateBill();
     return;
   }
   if (action === "extract") {
-    switchView("extract");
+    switchDataView("extract");
     return;
   }
   if (action === "export") {
-    switchView("export");
+    switchDataView("export");
     return;
   }
   if (action === "market-demand") {
-    switchView("market");
+    switchPrimaryView("market");
     openMarketDemandEditor();
   }
 }
@@ -1731,6 +1835,7 @@ function logout() {
   authDialogOpen.value = false;
   currentView.value = "overview";
   marketTab.value = "browse";
+  marketDetailDialog.open = false;
   marketDemands.value = [];
   myMarketDemands.value = [];
   myAcceptedOrders.value = [];
@@ -1743,11 +1848,46 @@ function logout() {
 
 function switchView(view) {
   currentView.value = view;
+  if (view !== "market") {
+    marketDetailDialog.open = false;
+  }
   if (view === "market") {
     loadMarketRecords();
   } else if (view === "templates") {
     loadManagedTemplates();
   }
+}
+
+function switchPrimaryView(view) {
+  if (view === "overview") {
+    switchView("overview");
+    return;
+  }
+  if (view === "data") {
+    switchDataView(dataNavItems.some((item) => item.key === currentView.value) ? currentView.value : "bills");
+    return;
+  }
+  if (view === "market") {
+    switchView("market");
+    return;
+  }
+  switchView("news");
+}
+
+function switchDataView(view) {
+  sidebarCollapsed.value = false;
+  switchView(view);
+}
+
+function switchMarketSection(section) {
+  const tabMap = {
+    lobby: "browse",
+    "my-posts": "mine",
+    "my-orders": "orders",
+  };
+  sidebarCollapsed.value = false;
+  switchView("market");
+  switchMarketTab(tabMap[section] || "browse");
 }
 
 async function preloadMarketWorkspace() {
@@ -1864,6 +2004,10 @@ function clearSelectedMarketDemand() {
   selectedMarketDemandId.value = "";
   selectedMarketDemandDetail.value = null;
   selectedMarketQuotes.value = [];
+}
+
+function closeMarketDetailDialog() {
+  marketDetailDialog.open = false;
 }
 
 async function loadMarketDemandDetailById(demandId) {
@@ -1992,15 +2136,19 @@ function validateMarketDemandForm() {
   return "";
 }
 
-function selectMarketRecord(item) {
+async function selectMarketRecord(item) {
   if (!item?.id) {
     return;
   }
   if (marketTab.value === "orders") {
     selectedMarketOrderId.value = item.id;
+    marketDetailDialog.mode = "order";
+    marketDetailDialog.open = true;
     return;
   }
-  loadMarketDemandDetailById(item.id);
+  await loadMarketDemandDetailById(item.id);
+  marketDetailDialog.mode = "demand";
+  marketDetailDialog.open = true;
 }
 
 async function submitSelectedDemandQuote() {
